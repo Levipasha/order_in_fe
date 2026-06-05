@@ -1016,6 +1016,11 @@ export default function RestaurantAdminPanel({
         ...r,
         tables: [...(r.tables || []), { tableNo: qrTableNoInput, qrCodeUrl: resolvedQrCodeUrl }]
       } : r));
+    } else {
+      setRestaurants(restaurants.map(r => (r.id === restaurant.id || r._id === restaurant.id || r._id === restaurant._id) ? {
+        ...r,
+        tables: (r.tables || []).map(t => t.tableNo === qrTableNoInput ? { ...t, qrCodeUrl: resolvedQrCodeUrl } : t)
+      } : r));
     }
     
     setLatestQrCodeGenerated(resolvedQrCodeUrl);
