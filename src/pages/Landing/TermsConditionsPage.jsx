@@ -118,7 +118,7 @@ export default function TermsConditionsPage({ setCurrentView }) {
             <li>Submitting false orders or initiating fraudulent chargeback requests.</li>
             <li>Injecting viruses, cross-site scripts (XSS), SQL injections, or attempting hacking attacks on the database.</li>
             <li>Listing contraband, illegal goods, or weapons on the online storefront.</li>
-            <li>Attempting to copy or reverse-engineer the source code or design layout of RestroSaaS / SkyWeb products.</li>
+            <li>Attempting to copy or reverse-engineer the source code or design layout of Orderin / SkyWeb products.</li>
           </ul>
         </section>
 
@@ -180,8 +180,8 @@ export default function TermsConditionsPage({ setCurrentView }) {
           <div className="space-y-0.5 text-slate-800 text-xs">
             <p className="font-bold">Legal Compliance Department</p>
             <p>SkyWeb IT Solutions Private Limited</p>
-            <p>Madhapur, Hyderabad, Telangana, 500081, India</p>
-            <p>Email: <a href="mailto:support@skywebit.com" className="text-red-500 font-bold hover:underline">support@skywebit.com</a></p>
+            <p>Geetha Nagar, Malkajgiri, Hyderabad, Telangana, 500047, India</p>
+            <p>Email: <a href="mailto:support@orderin.in" className="text-red-500 font-bold hover:underline">support@orderin.in</a></p>
           </div>
         </section>
       </motion.div>

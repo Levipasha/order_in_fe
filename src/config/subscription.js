@@ -1,0 +1,3 @@
+/** Monthly Premium Pro price in INR. Set VITE_SUBSCRIPTION_MONTHLY_PRICE_INR=799 for production. */
+export const SUBSCRIPTION_MONTHLY_PRICE_INR = Number(import.meta.env.VITE_SUBSCRIPTION_MONTHLY_PRICE_INR) || 1;
+export const SUBSCRIPTION_MONTHLY_PRICE_PAISE = Math.round(SUBSCRIPTION_MONTHLY_PRICE_INR * 100);

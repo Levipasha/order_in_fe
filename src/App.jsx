@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Utensils, Sparkles, LogOut, LayoutDashboard, Crown } from 'lucide-react';
+import Loader from './pages/Loader';
+import { Utensils, Sparkles, LogOut, LayoutDashboard, Crown, ChevronDown, ClipboardList, Navigation, Compass, Menu, X } from 'lucide-react';
 import { apiRequest } from './utils/api';
+import { getRedirectResult } from 'firebase/auth';
+import { auth } from './firebase';
 
 import LandingPage from './pages/Landing/LandingPage';
 import CustomerMenu from './pages/Customer/CustomerMenu';
@@ -14,40 +17,53 @@ import ContactPage from './pages/Landing/ContactPage';
 import PrivacyPolicyPage from './pages/Landing/PrivacyPolicyPage';
 import TermsConditionsPage from './pages/Landing/TermsConditionsPage';
 import RefundPolicyPage from './pages/Landing/RefundPolicyPage';
+import ProductsPage from './pages/Landing/ProductsPage';
+import SolutionsPage from './pages/Landing/SolutionsPage';
+import ResourcesPage from './pages/Landing/ResourcesPage';
+import OrderPage from './pages/Landing/OrderPage';
+import CustomerOrders from './pages/Customer/CustomerOrders';
+import CircularRevealHeading from './pages/Landing/CircularRevealHeading';
+import slideImage1 from './pages/Landing/Untitled design (5).png';
+import slideImage2 from './pages/Landing/Untitled design (4).png';
+import slideImage3 from './pages/Landing/Gemini_Generated_Image_2evpxz2evpxz2evp.png';
+import slideImage4 from './pages/Landing/schedule_order_image.jpg';
+import slideImage5 from './pages/Landing/map_route_image.jpg';
 
 // Mock data removed. App operates exclusively on MongoDB backend.
 
 // ── Seed users (will be merged with localStorage) ──────────────────────────
 const SEED_USERS = [];
 
+const PLATE_ITEMS = [
+  { text: "QR Tables", image: slideImage1 },
+  { text: "Chef Direct", image: slideImage2 },
+  { text: "Easy Menu", image: slideImage3 },
+  { text: "Schedule", image: slideImage4 },
+  { text: "Route Order", image: slideImage5 },
+];
+
+const PLATE_CENTER_TEXT = (
+  <div className="flex flex-col items-center justify-center text-center select-none pointer-events-none">
+    <span className="text-[11px] font-black tracking-[0.2em] text-slate-800 uppercase">Orderin</span>
+    <span className="text-[8px] font-bold text-red-500 uppercase tracking-widest mt-0.5">SaaS OS</span>
+  </div>
+);
+
 export default function App() {
 
   // ── Persistent State ───────────────────────────────────────────────────
   // ── Persistent State ───────────────────────────────────────────────────
-  const [restaurants, setRestaurants] = useState(() => {
-    const saved = localStorage.getItem('restro_restaurants');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('restro_categories');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [menus, setMenus] = useState(() => {
-    const saved = localStorage.getItem('restro_menus');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('restro_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [coupons, setCoupons] = useState(() => {
-    const saved = localStorage.getItem('restro_coupons');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // ── Persistent State ───────────────────────────────────────────────────
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [restaurants, setRestaurants] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [menus, setMenus] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [coupons, setCoupons] = useState([]);
 
   // Users — merge seed + any registered users saved in localStorage
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('restro_users');
+    const saved = localStorage.getItem('Orderin_users');
     const stored = saved ? JSON.parse(saved) : [];
     // Merge seed users (never duplicate by email)
     const merged = [...SEED_USERS];
@@ -61,29 +77,69 @@ export default function App() {
 
   // Auth
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('restro_current_user');
+    const saved = localStorage.getItem('Orderin_current_user');
     return saved ? JSON.parse(saved) : null;
   });
 
-  // ── Sync to LocalStorage ───────────────────────────────────────────────
-  useEffect(() => { localStorage.setItem('restro_restaurants', JSON.stringify(restaurants)); }, [restaurants]);
-  useEffect(() => { localStorage.setItem('restro_categories',  JSON.stringify(categories));  }, [categories]);
-  useEffect(() => { localStorage.setItem('restro_menus',       JSON.stringify(menus));       }, [menus]);
-  useEffect(() => { localStorage.setItem('restro_orders',      JSON.stringify(orders));      }, [orders]);
-  useEffect(() => { localStorage.setItem('restro_coupons',     JSON.stringify(coupons));     }, [coupons]);
+  // ── Clean up stale localStorage keys & sync user state ──────────────────
+  useEffect(() => {
+    const staleKeys = [
+      'Orderin_restaurants',
+      'Orderin_categories',
+      'Orderin_menus',
+      'Orderin_orders',
+      'Orderin_coupons'
+    ];
+    staleKeys.forEach(key => localStorage.removeItem(key));
+  }, []);
+
   useEffect(() => {
     // Only store non-seed users
     const toStore = users.filter(u => !SEED_USERS.find(s => s.email === u.email));
-    localStorage.setItem('restro_users', JSON.stringify(toStore));
+    localStorage.setItem('Orderin_users', JSON.stringify(toStore));
   }, [users]);
+
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('restro_current_user', JSON.stringify(currentUser));
+      localStorage.setItem('Orderin_current_user', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('restro_current_user');
+      localStorage.removeItem('Orderin_current_user');
       setIsAdminPreview(false);
     }
   }, [currentUser]);
+
+  // ── Handle Firebase Redirect Sign-In result ───────────────────────────
+  useEffect(() => {
+    const handleRedirectAuth = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          const user = result.user;
+          const savedPhone = localStorage.getItem(`Orderin_phone_${user.uid}`) || '';
+          const loggedInUser = {
+            id: user.uid,
+            email: user.email,
+            role: 'customer',
+            name: user.displayName || 'Guest Diner',
+            photoURL: user.photoURL,
+            phone: savedPhone
+          };
+
+          if (!savedPhone) {
+            sessionStorage.setItem('Orderin_temp_customer', JSON.stringify(loggedInUser));
+            setCurrentView('login');
+          } else {
+            localStorage.setItem('Orderin_customer_phone', savedPhone);
+            setCurrentUser(loggedInUser);
+            setCurrentView('landing');
+          }
+        }
+      } catch (err) {
+        console.error("Redirect auth error:", err);
+      }
+    };
+    handleRedirectAuth();
+  }, []);
 
   // ── Load approved restaurants from MongoDB on mount ───────────────────
   useEffect(() => {
@@ -97,6 +153,7 @@ export default function App() {
             slug: dbRest.slug,
             logo: dbRest.logo || 'https://img.icons8.com/fluency/196/hamburger.png',
             banner: dbRest.banner || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1200&auto=format&fit=crop',
+            tagline: dbRest.tagline || '',
             theme: dbRest.theme || { primaryColor: '#bd3838', secondaryColor: '#0f172a', textColor: '#ffffff', styleType: 'glassmorphism' },
             timings: dbRest.timings || { open: '09:00', close: '22:00' },
             contact: dbRest.contact || { phone: '', email: '', address: '', socialLinks: {} },
@@ -105,7 +162,12 @@ export default function App() {
             isApproved: dbRest.isApproved,
             isActive: dbRest.isActive,
             rating: dbRest.rating || 5.0,
-            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' }
+            address: dbRest.address || '',
+            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
+            subscriptionPlan: dbRest.subscriptionPlan,
+            subscriptionExpiry: dbRest.subscriptionExpiry,
+            subscriptionActive: dbRest.subscriptionActive
           }));
           setRestaurants(formatted);
         }
@@ -137,6 +199,7 @@ export default function App() {
             slug: dbRest.slug,
             logo: dbRest.logo || 'https://img.icons8.com/fluency/196/hamburger.png',
             banner: dbRest.banner || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1200&auto=format&fit=crop',
+            tagline: dbRest.tagline || '',
             theme: dbRest.theme || { primaryColor: '#bd3838', secondaryColor: '#0f172a', textColor: '#ffffff', styleType: 'glassmorphism' },
             timings: dbRest.timings || { open: '09:00', close: '22:00' },
             contact: dbRest.contact || { phone: '', email: '', address: '', socialLinks: {} },
@@ -145,7 +208,12 @@ export default function App() {
             isApproved: dbRest.isApproved,
             isActive: dbRest.isActive,
             rating: dbRest.rating || 5.0,
-            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' }
+            address: dbRest.address || '',
+            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
+            subscriptionPlan: dbRest.subscriptionPlan,
+            subscriptionExpiry: dbRest.subscriptionExpiry,
+            subscriptionActive: dbRest.subscriptionActive
           };
 
           // Sync restaurants array with this profile
@@ -154,6 +222,15 @@ export default function App() {
             return [...filtered, formattedRest];
           });
 
+          // Ensure currentUser has the restaurantId populated and synchronized
+          if (currentUser && (!currentUser.restaurantId || currentUser.restaurantId !== restId)) {
+            setCurrentUser(prev => {
+              const updated = { ...prev, restaurantId: restId };
+              localStorage.setItem('Orderin_current_user', JSON.stringify(updated));
+              return updated;
+            });
+          }
+
           // 2. Fetch categories & menus
           const catRes = await apiRequest(`/restaurant/public/${formattedRest.slug}`);
           if (catRes.success) {
@@ -161,7 +238,7 @@ export default function App() {
               const formattedCats = catRes.categories.map(c => ({
                 id: c._id,
                 name: c.name,
-                image: c.image || 'https://img.icons8.com/fluency/96/pizza.png',
+                image: c.image || '',
                 restaurantId: restId
               }));
               setCategories(prev => {
@@ -179,7 +256,7 @@ export default function App() {
                 description: m.description || '',
                 price: m.price,
                 discountPrice: m.discountPrice || null,
-                image: m.image || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=600&auto=format&fit=crop',
+                image: m.image || '',
                 foodType: m.foodType || 'veg',
                 tags: m.tags || { isSpicy: false, isBestseller: false, isTodaySpecial: false },
                 inStock: m.inStock !== undefined ? m.inStock : true,
@@ -219,7 +296,14 @@ export default function App() {
                 paymentMethod: o.paymentMethod,
                 paymentStatus: o.paymentStatus,
                 orderStatus: o.orderStatus,
-                createdAt: o.createdAt
+                createdAt: o.createdAt,
+                orderType: o.orderType || 'table',
+                pickupTime: o.pickupTime || '',
+                pickupCode: o.pickupCode || '',
+                preparationStatus: o.preparationStatus || 'Pending',
+                routeFrom: o.routeFrom || '',
+                routeTo: o.routeTo || '',
+                routeETA: o.routeETA || ''
               }));
               setOrders(prev => {
                 const filtered = prev.filter(o => o.restaurantId !== restId);
@@ -257,7 +341,7 @@ export default function App() {
     }
 
     // Otherwise, fallback to logged-in user routing
-    const saved = localStorage.getItem('restro_current_user');
+    const saved = localStorage.getItem('Orderin_current_user');
     if (saved) {
       const u = JSON.parse(saved);
       if (u.role === 'super_admin') return 'super_admin';
@@ -267,62 +351,70 @@ export default function App() {
   });
 
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [orderFlow, setOrderFlow] = useState(null);
   
   // Track whether this is an admin preview or a direct QR scan customer session.
   const [isAdminPreview, setIsAdminPreview] = useState(() => {
-    return sessionStorage.getItem('restro_is_admin_preview') === 'true';
+    return sessionStorage.getItem('Orderin_is_admin_preview') === 'true';
   });
 
   // Keep customer table session tab-isolated via sessionStorage
   const [activeTableNo, setActiveTableNo] = useState(() => {
-    return sessionStorage.getItem('restro_active_table') || '';
+    return sessionStorage.getItem('Orderin_active_table') || '';
   });
   
   const [language, setLanguage] = useState('English');
 
   // Customer state: Keep cart, checkout state, and order tracking isolated to each browser tab session
   const [cart, setCart] = useState(() => {
-    const saved = sessionStorage.getItem('restro_cart');
+    const saved = sessionStorage.getItem('Orderin_cart');
     return saved ? JSON.parse(saved) : [];
   });
   const [activeCoupon, setActiveCoupon] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState(() => {
-    return sessionStorage.getItem('restro_checkout_step') || null;
+    return sessionStorage.getItem('Orderin_checkout_step') || null;
   });
   const [selectedCategoryTab, setSelectedCategoryTab] = useState('All');
   const [foodTypeFilter, setFoodTypeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFoodPreview, setSelectedFoodPreview] = useState(null);
   const [liveOrderTrackingId, setLiveOrderTrackingId] = useState(() => {
-    return sessionStorage.getItem('restro_live_order_tracking_id') || null;
+    return sessionStorage.getItem('Orderin_live_order_tracking_id') || null;
   });
   
   const [favorites, setFavorites] = useState([]);
-  const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+
+  // ── Scroll to Top on View Change ─────────────────────────────────────
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    setMobileMenuOpen(false);
+  }, [currentView]);
 
   // ── Sync Customer Session States to sessionStorage ────────────────────
   useEffect(() => {
-    sessionStorage.setItem('restro_is_admin_preview', isAdminPreview ? 'true' : 'false');
+    sessionStorage.setItem('Orderin_is_admin_preview', isAdminPreview ? 'true' : 'false');
   }, [isAdminPreview]);
 
   useEffect(() => {
-    sessionStorage.setItem('restro_cart', JSON.stringify(cart));
+    sessionStorage.setItem('Orderin_cart', JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    if (activeTableNo) sessionStorage.setItem('restro_active_table', activeTableNo);
-    else sessionStorage.removeItem('restro_active_table');
+    if (activeTableNo) sessionStorage.setItem('Orderin_active_table', activeTableNo);
+    else sessionStorage.removeItem('Orderin_active_table');
   }, [activeTableNo]);
 
   useEffect(() => {
-    if (checkoutStep) sessionStorage.setItem('restro_checkout_step', checkoutStep);
-    else sessionStorage.removeItem('restro_checkout_step');
+    if (checkoutStep) sessionStorage.setItem('Orderin_checkout_step', checkoutStep);
+    else sessionStorage.removeItem('Orderin_checkout_step');
   }, [checkoutStep]);
 
   useEffect(() => {
-    if (liveOrderTrackingId) sessionStorage.setItem('restro_live_order_tracking_id', liveOrderTrackingId);
-    else sessionStorage.removeItem('restro_live_order_tracking_id');
+    if (liveOrderTrackingId) sessionStorage.setItem('Orderin_live_order_tracking_id', liveOrderTrackingId);
+    else sessionStorage.removeItem('Orderin_live_order_tracking_id');
   }, [liveOrderTrackingId]);
 
   // ── Initial URL Slug & Table QR Parser ────────────────────────────────
@@ -370,6 +462,7 @@ export default function App() {
             slug: dbRest.slug,
             logo: dbRest.logo || 'https://img.icons8.com/fluency/196/hamburger.png',
             banner: dbRest.banner || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1200&auto=format&fit=crop',
+            tagline: dbRest.tagline || '',
             theme: dbRest.theme || { primaryColor: '#bd3838', secondaryColor: '#0f172a', textColor: '#ffffff', styleType: 'glassmorphism' },
             timings: dbRest.timings || { open: '09:00', close: '22:00' },
             contact: dbRest.contact || { phone: '', email: '', address: '', socialLinks: {} },
@@ -378,7 +471,12 @@ export default function App() {
             isApproved: dbRest.isApproved,
             isActive: dbRest.isActive,
             rating: dbRest.rating || 5.0,
-            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' }
+            address: dbRest.address || '',
+            bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
+            subscriptionPlan: dbRest.subscriptionPlan,
+            subscriptionExpiry: dbRest.subscriptionExpiry,
+            subscriptionActive: dbRest.subscriptionActive
           };
 
           // Sync restaurants array
@@ -392,7 +490,7 @@ export default function App() {
             const formattedCats = res.categories.map(c => ({
               id: c._id,
               name: c.name,
-              image: c.image || 'https://img.icons8.com/fluency/96/pizza.png',
+              image: c.image || '',
               restaurantId: dbRest._id,
             }));
             setCategories(prev => {
@@ -411,7 +509,7 @@ export default function App() {
               description: m.description || '',
               price: m.price,
               discountPrice: m.discountPrice || null,
-              image: m.image || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=600&auto=format&fit=crop',
+              image: m.image || '',
               foodType: m.foodType || 'veg',
               tags: m.tags || { isSpicy: false, isBestseller: false, isTodaySpecial: false },
               inStock: m.inStock !== undefined ? m.inStock : true,
@@ -421,6 +519,22 @@ export default function App() {
               const filtered = prev.filter(m => m.restaurantId !== dbRest._id);
               return [...filtered, ...formattedMenus];
             });
+          }
+
+          // Sync coupons
+          if (res.coupons && Array.isArray(res.coupons)) {
+            const formattedCoupons = res.coupons.map(cop => ({
+              code: cop.code,
+              discountType: cop.discountType,
+              discountValue: cop.discountValue,
+              minOrderAmount: cop.minOrderAmount,
+              maxDiscountAmount: cop.maxDiscountAmount,
+              description: cop.discountType === 'flat' 
+                ? `Flat ₹${cop.discountValue} Off on orders above ₹${cop.minOrderAmount}`
+                : `${cop.discountValue}% Off on orders above ₹${cop.minOrderAmount}`,
+              restaurantId: dbRest._id
+            }));
+            setCoupons(formattedCoupons);
           }
         }
       } catch (err) {
@@ -448,12 +562,13 @@ export default function App() {
     setCurrentUser(null);
     setCurrentView('landing');
     setIsAdminPreview(false);
-    localStorage.removeItem('restro_current_user');
-    sessionStorage.removeItem('restro_is_admin_preview');
-    sessionStorage.removeItem('restro_cart');
-    sessionStorage.removeItem('restro_active_table');
-    sessionStorage.removeItem('restro_checkout_step');
-    sessionStorage.removeItem('restro_live_order_tracking_id');
+    localStorage.removeItem('Orderin_current_user');
+    localStorage.removeItem('Orderin_customer_phone');
+    sessionStorage.removeItem('Orderin_is_admin_preview');
+    sessionStorage.removeItem('Orderin_cart');
+    sessionStorage.removeItem('Orderin_active_table');
+    sessionStorage.removeItem('Orderin_checkout_step');
+    sessionStorage.removeItem('Orderin_live_order_tracking_id');
   };
 
   // ── Translation helper ────────────────────────────────────────────────
@@ -479,32 +594,100 @@ export default function App() {
 
             {/* Logo */}
             <div
-              onClick={() => { if (!currentUser) { setCurrentView('landing'); setCheckoutStep(null); } }}
-              className={`flex items-center ${!currentUser ? 'cursor-pointer' : 'cursor-default'} group`}
+              onClick={() => { if (!currentUser || currentUser.role === 'customer') { setCurrentView('landing'); setCheckoutStep(null); } }}
+              className={`flex items-center ${(!currentUser || currentUser.role === 'customer') ? 'cursor-pointer' : 'cursor-default'} group`}
             >
-              <img src="/order_logo.png" className="h-12 w-auto object-contain group-hover:scale-105 transition-all" alt="RestroSaaS" />
+              <img src="/order_logo.png" className="h-12 w-auto object-contain group-hover:scale-105 transition-all" alt="Orderin" />
             </div>
 
-            {/* Public navigation links */}
+            {/* Public navigation links inside a premium capsule pill */}
             {!currentUser && (
-              <nav className="hidden md:flex items-center gap-8 text-xs font-black uppercase tracking-wider text-slate-500">
+              <nav className="hidden md:flex items-center bg-slate-50/90 border border-slate-200/60 p-1.5 rounded-full shadow-sm backdrop-blur-md transition-all duration-300">
                 <button
-                  onClick={() => { setCurrentView('landing'); setCheckoutStep(null); }}
-                  className={`hover:text-red-500 transition-colors ${currentView === 'landing' ? 'text-red-500' : ''}`}
+                  onClick={() => { setCurrentView('products'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'products' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
                 >
-                  Home
+                  Products
                 </button>
                 <button
-                  onClick={() => { setCurrentView('about'); }}
-                  className={`hover:text-red-500 transition-colors ${currentView === 'about' ? 'text-red-500' : ''}`}
+                  onClick={() => { setCurrentView('solutions'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'solutions' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
                 >
-                  About Us
+                  Solutions
+                </button>
+                <button
+                  onClick={() => { setCurrentView('resources'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'resources' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  Why Us
+                </button>
+                <button
+                  onClick={() => { setCurrentView('order'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'order' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  Order
                 </button>
                 <button
                   onClick={() => { setCurrentView('contact'); }}
-                  className={`hover:text-red-500 transition-colors ${currentView === 'contact' ? 'text-red-500' : ''}`}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'contact' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
                 >
-                  Contact
+                  Contact us
+                </button>
+              </nav>
+            )}
+
+            {/* Customer / Diner navigation links */}
+            {currentUser && currentUser.role === 'customer' && (
+              <nav className="hidden md:flex items-center bg-slate-50/90 border border-slate-200/60 p-1.5 rounded-full shadow-sm backdrop-blur-md transition-all duration-300">
+                <button
+                  onClick={() => { setCurrentView('landing'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'landing' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  Explore Restaurants
+                </button>
+                <button
+                  onClick={() => { setCurrentView('order'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'order' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  Route & Schedule Order
+                </button>
+                <button
+                  onClick={() => { setCurrentView('customer_orders'); }}
+                  className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    currentView === 'customer_orders' 
+                      ? 'bg-slate-900 text-white shadow-sm scale-105' 
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  My Orders & Pickup Codes
                 </button>
               </nav>
             )}
@@ -517,10 +700,123 @@ export default function App() {
               {/* Logged-in user bar */}
               {currentUser ? (
                 <div className="flex items-center gap-3">
-                  {/* Role badge */}
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${currentUser.role === 'super_admin' ? 'bg-purple-500/10 text-purple-600 border border-purple-200' : 'bg-red-500/10 text-red-600 border border-red-200'}`}>
-                    {currentUser.role === 'super_admin' ? <Crown className="w-3.5 h-3.5" /> : <LayoutDashboard className="w-3.5 h-3.5" />}
-                    <span className="hidden sm:block">{currentUser.name}</span>
+                  {/* Role badge with Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                      className={`flex items-center justify-center transition-all duration-300 hover:scale-[1.05] cursor-pointer ${
+                        profileDropdownOpen 
+                          ? 'w-10 h-10 rounded-full p-0' 
+                          : 'gap-2 px-3 py-1.5 rounded-full'
+                      } text-xs font-bold ${
+                        currentUser.role === 'super_admin' 
+                          ? 'bg-purple-500/10 text-purple-600 border border-purple-200 hover:bg-purple-500/20' 
+                          : currentUser.role === 'customer'
+                          ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-200 hover:bg-emerald-500/20'
+                          : 'bg-red-500/10 text-red-600 border border-red-200 hover:bg-red-500/20'
+                      }`}
+                    >
+                      {currentUser.role === 'customer' && currentUser.photoURL ? (
+                        <div className="w-7 h-7 rounded-full border-2 border-emerald-400/80 flex items-center justify-center p-[2px] bg-white shadow-inner transition-transform duration-300 hover:rotate-12">
+                          <img src={currentUser.photoURL} className="w-full h-full rounded-full object-cover" alt="" />
+                        </div>
+                      ) : currentUser.role === 'super_admin' ? (
+                        <div className="w-7 h-7 rounded-full border-2 border-purple-400/80 flex items-center justify-center bg-white shadow-inner">
+                          <Crown className="w-3.5 h-3.5 text-purple-500" />
+                        </div>
+                      ) : (
+                        <div className="w-7 h-7 rounded-full border-2 border-red-400/80 flex items-center justify-center bg-white shadow-inner">
+                          <LayoutDashboard className="w-3.5 h-3.5 text-red-500" />
+                        </div>
+                      )}
+                      {!profileDropdownOpen && (
+                        <>
+                          <span className="hidden sm:block transition-all duration-300">{currentUser.name}</span>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform duration-300" />
+                        </>
+                      )}
+                    </button>
+
+                    <AnimatePresence>
+                      {profileDropdownOpen && (
+                        <>
+                          {/* Invisible backdrop to close dropdown on outer click */}
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setProfileDropdownOpen(false)}
+                          />
+                          
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute right-0 mt-2.5 w-56 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 p-2 space-y-1 text-left"
+                          >
+                            <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1 space-y-0.5">
+                              <span className="text-xs font-black text-slate-800 block truncate">{currentUser.name}</span>
+                              <span className="text-[10px] text-slate-400 block truncate">{currentUser.email}</span>
+                            </div>
+
+                            {currentUser.role === 'customer' ? (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setCurrentView('customer_orders');
+                                    setProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                                >
+                                  <ClipboardList className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                  <span>History Orders</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setCurrentView('order');
+                                    setProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                                >
+                                  <Navigation className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                  <span>Route Pre-Orders</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setCurrentView('landing');
+                                    setProfileDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                                >
+                                  <Compass className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                  <span>Explore Food</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setCurrentView(currentUser.role === 'super_admin' ? 'super_admin' : 'restaurant_admin');
+                                  setProfileDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                              >
+                                <LayoutDashboard className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                <span>Dashboard</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                  handleLogout();
+                                  setProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-500 rounded-xl text-xs font-bold transition flex items-center gap-2 border-t border-slate-100 mt-1 group cursor-pointer"
+                            >
+                              <LogOut className="w-3.5 h-3.5 text-red-400 group-hover:text-red-500 transition-colors" />
+                              <span>Logout Account</span>
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   {/* Browse store (for restaurant admins) */}
@@ -531,30 +827,90 @@ export default function App() {
                         setCurrentView('customer');
                         setIsAdminPreview(true);
                       }}
-                      className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5">
+                      className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
                       <Utensils className="w-3.5 h-3.5" />
                       View Store
                     </button>
                   )}
-
-                  {/* Logout */}
-                  <button onClick={handleLogout}
-                    className="flex items-center gap-1.5 bg-slate-100 hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-500 font-bold text-xs px-4 py-2.5 rounded-xl transition">
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span className="hidden sm:block">Logout</span>
-                  </button>
                 </div>
               ) : (
-                /* Book Now / Login button */
+                /* Order / Login button */
                 <button
                   onClick={() => { setCurrentView('login'); }}
                   className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition hover:scale-[1.03] flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Book Now
+                  <Utensils className="w-3.5 h-3.5" />
+                  Start
+                </button>
+              )}
+
+              {/* Mobile hamburger menu */}
+              {(!currentUser || currentUser.role === 'customer') && (
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 md:hidden transition cursor-pointer"
+                  aria-label="Toggle mobile menu"
+                >
+                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>
               )}
             </div>
           </div>
+
+          {/* Mobile dropdown menu links with nice animation */}
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="md:hidden border-t border-slate-100 mt-3 pt-3 pb-2 flex flex-col gap-2 overflow-hidden"
+              >
+                {!currentUser ? (
+                  <>
+                    {[
+                      { view: 'products', label: 'Products' },
+                      { view: 'solutions', label: 'Solutions' },
+                      { view: 'resources', label: 'Why Us' },
+                      { view: 'order', label: 'Order' },
+                      { view: 'contact', label: 'Contact us' }
+                    ].map((item) => (
+                      <button
+                        key={item.view}
+                        onClick={() => { setCurrentView(item.view); setMobileMenuOpen(false); }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+                          currentView === item.view 
+                            ? 'bg-slate-900 text-white shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </>
+                ) : currentUser.role === 'customer' ? (
+                  <>
+                    {[
+                      { view: 'landing', label: 'Explore Restaurants' },
+                      { view: 'order', label: 'Route & Schedule Order' },
+                      { view: 'customer_orders', label: 'My Orders & Pickup Codes' }
+                    ].map((item) => (
+                      <button
+                        key={item.view}
+                        onClick={() => { setCurrentView(item.view); setMobileMenuOpen(false); }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+                          currentView === item.view 
+                            ? 'bg-slate-900 text-white shadow-sm' 
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </>
+                ) : null}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Admin sub-nav tabs */}
           {isAdminView && currentUser && (
@@ -584,10 +940,28 @@ export default function App() {
           {currentView === 'landing' && (
             <LandingPage
               key="landing"
+              currentUser={currentUser}
               restaurants={restaurants}
               setSelectedRestaurantSlug={setSelectedRestaurantSlug}
               setCurrentView={setCurrentView}
               setActiveTableNo={setActiveTableNo}
+              setOrderFlow={setOrderFlow}
+              cart={cart}
+              setCart={setCart}
+              activeCoupon={activeCoupon}
+              setActiveCoupon={setActiveCoupon}
+              checkoutStep={checkoutStep}
+              setCheckoutStep={setCheckoutStep}
+              liveOrderTrackingId={liveOrderTrackingId}
+              setLiveOrderTrackingId={setLiveOrderTrackingId}
+              activeTableNo={activeTableNo}
+              orders={orders}
+              setOrders={setOrders}
+              showPaymentModal={showPaymentModal}
+              setShowPaymentModal={setShowPaymentModal}
+              paymentProcessing={paymentProcessing}
+              setPaymentProcessing={setPaymentProcessing}
+              coupons={coupons}
             />
           )}
 
@@ -625,7 +999,7 @@ export default function App() {
                 activeTableNo={activeTableNo} setActiveTableNo={setActiveTableNo}
                 t={t}
                 orders={orders} setOrders={setOrders}
-                showRazorpayModal={showRazorpayModal} setShowRazorpayModal={setShowRazorpayModal}
+                showPaymentModal={showPaymentModal} setShowPaymentModal={setShowPaymentModal}
                 paymentProcessing={paymentProcessing} setPaymentProcessing={setPaymentProcessing}
                 favorites={favorites} setFavorites={setFavorites}
                 coupons={coupons}
@@ -639,8 +1013,7 @@ export default function App() {
               />
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[60vh] bg-slate-900/60 backdrop-blur-md gap-4 rounded-3xl p-8 border border-white/10 max-w-md mx-auto my-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
-                <p className="text-sm font-black text-white tracking-wide animate-pulse">Loading live digital menu from MongoDB...</p>
+                <Loader message="Loading live digital menu..." dark={true} />
               </div>
             )
           )}
@@ -708,6 +1081,33 @@ export default function App() {
             <ContactPage key="contact" setCurrentView={setCurrentView} />
           )}
 
+          {/* PRODUCTS */}
+          {currentView === 'products' && (
+            <ProductsPage key="products" setCurrentView={setCurrentView} />
+          )}
+
+          {/* SOLUTIONS */}
+          {currentView === 'solutions' && (
+            <SolutionsPage key="solutions" setCurrentView={setCurrentView} />
+          )}
+
+          {/* WHY US */}
+          {currentView === 'resources' && (
+            <ResourcesPage key="resources" setCurrentView={setCurrentView} restaurants={restaurants} orders={orders} />
+          )}
+
+          {/* ORDER PAGE */}
+          {currentView === 'order' && (
+            <OrderPage
+              key="order"
+              restaurants={restaurants}
+              setCurrentView={setCurrentView}
+              setOrders={setOrders}
+              orders={orders}
+              initialFlow={orderFlow}
+            />
+          )}
+
           {/* PRIVACY POLICY */}
           {currentView === 'privacy' && (
             <PrivacyPolicyPage key="privacy" setCurrentView={setCurrentView} />
@@ -721,6 +1121,11 @@ export default function App() {
           {/* REFUND POLICY */}
           {currentView === 'refund' && (
             <RefundPolicyPage key="refund" setCurrentView={setCurrentView} />
+          )}
+
+          {/* CUSTOMER ORDERS DASHBOARD */}
+          {currentView === 'customer_orders' && currentUser && (
+            <CustomerOrders key="customer-orders" currentUser={currentUser} onBack={() => setCurrentView('landing')} />
           )}
 
         </AnimatePresence>
@@ -815,6 +1220,17 @@ export default function App() {
             <p>Made in Hyderabad, India 🇮🇳</p>
           </div>
         </footer>
+      )}
+
+      {/* Neumorphic Floating Rotating Plate (SaaS Core Showcases) */}
+      {currentView === 'landing' && !currentUser && (
+        <div className="hidden lg:block fixed right-0 top-[22%] translate-x-1/2 z-50 pointer-events-auto select-none">
+          <CircularRevealHeading 
+            items={PLATE_ITEMS} 
+            centerText={PLATE_CENTER_TEXT} 
+            size="lg" 
+          />
+        </div>
       )}
     </div>
   );

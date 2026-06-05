@@ -2,17 +2,30 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, ShoppingBag, Trash2, QrCode, Star, X, Percent, ArrowRight, Heart, Activity, Utensils,
-  Leaf, Flame, Sprout, BookOpen, ArrowLeft
+  Leaf, Flame, Sprout, BookOpen, ArrowLeft, Plus, ChevronRight, SlidersHorizontal, Share2, Clock, Bike, Tag, Compass, User,
+  Wifi, Battery
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
 import { socket, joinRoom } from '../../utils/socket';
+
+const resolveImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image')) {
+    return url;
+  }
+  const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  if (url.startsWith('/')) {
+    return `${baseUrl}${url}`;
+  }
+  return `${baseUrl}/${url}`;
+};
 
 export default function CustomerMenu({
   restaurant, categories, menus, cart, setCart, activeCoupon, setActiveCoupon,
   checkoutStep, setCheckoutStep, selectedCategoryTab, setSelectedCategoryTab,
   foodTypeFilter, setFoodTypeFilter, searchQuery, setSearchQuery, selectedFoodPreview,
   setSelectedFoodPreview, liveOrderTrackingId, setLiveOrderTrackingId, activeTableNo,
-  setActiveTableNo, t, orders, setOrders, showRazorpayModal, setShowRazorpayModal,
+  setActiveTableNo, t, orders, setOrders, showPaymentModal, setShowPaymentModal,
   paymentProcessing, setPaymentProcessing, favorites, setFavorites, coupons, onBack
 }) {
 
@@ -20,6 +33,18 @@ export default function CustomerMenu({
   const [pendingOrderId, setPendingOrderId] = useState(null);
   const [paymentError, setPaymentError] = useState(null);
   const [gatewayFallbackNote, setGatewayFallbackNote] = useState(null);
+
+  // Diner profile & order selection states
+  const [currentUser] = useState(() => {
+    const saved = localStorage.getItem('Orderin_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [localOrderType, setLocalOrderType] = useState('table');
+  const [enteredTableNo, setEnteredTableNo] = useState('');
+  const [localPickupDate, setLocalPickupDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [localPickupTime, setLocalPickupTime] = useState('19:30');
+  const [localCustomerPhone, setLocalCustomerPhone] = useState(() => currentUser?.phone || localStorage.getItem('Orderin_customer_phone') || '');
+  const [localCustomerName, setLocalCustomerName] = useState(() => currentUser?.name || 'Guest Diner');
 
   const filteredCategories = useMemo(() => {
     return categories.filter(c => c.restaurantId === restaurant.id);
@@ -32,6 +57,7 @@ export default function CustomerMenu({
         if (foodTypeFilter === 'veg' && item.foodType !== 'veg') return false;
         if (foodTypeFilter === 'non-veg' && item.foodType !== 'non-veg') return false;
         if (foodTypeFilter === 'vegan' && item.foodType !== 'vegan') return false;
+        if (foodTypeFilter === 'spicy' && !item.tags?.isSpicy) return false;
       }
       if (searchQuery) {
         return item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -40,6 +66,12 @@ export default function CustomerMenu({
       return true;
     });
   }, [menus, restaurant, foodTypeFilter, searchQuery]);
+
+  const mostOrderedMenus = useMemo(() => {
+    const tagged = filteredMenus.filter(m => m.tags?.isBestseller || m.tags?.isTodaySpecial);
+    if (tagged.length > 0) return tagged;
+    return filteredMenus.slice(0, 4);
+  }, [filteredMenus]);
 
   // Scroll spy to highlight active category on scroll
   useEffect(() => {
@@ -137,7 +169,7 @@ export default function CustomerMenu({
           setCart([]);
           setActiveCoupon(null);
           setCheckoutStep('tracking');
-          setShowRazorpayModal(false);
+          setShowPaymentModal(false);
           setPaymentProcessing(false);
         }
       }
@@ -227,6 +259,7 @@ export default function CustomerMenu({
 
   const couponDiscount = useMemo(() => {
     if (!activeCoupon) return 0;
+    if (cartSubtotal < activeCoupon.minOrderAmount) return 0; // Safely invalidate if cart falls below threshold
     if (activeCoupon.discountType === 'flat') return activeCoupon.discountValue;
     const computed = (cartSubtotal * activeCoupon.discountValue) / 100;
     return activeCoupon.maxDiscountAmount ? Math.min(computed, activeCoupon.maxDiscountAmount) : computed;
@@ -265,15 +298,23 @@ export default function CustomerMenu({
       paymentMethod: verifiedOrder.paymentMethod,
       paymentStatus: verifiedOrder.paymentStatus,
       orderStatus: verifiedOrder.orderStatus,
-      createdAt: verifiedOrder.createdAt
+      createdAt: verifiedOrder.createdAt,
+      orderType: verifiedOrder.orderType || 'table',
+      pickupTime: verifiedOrder.pickupTime || '',
+      pickupCode: verifiedOrder.pickupCode || '',
+      preparationStatus: verifiedOrder.preparationStatus || 'Pending',
+      routeFrom: verifiedOrder.routeFrom || '',
+      routeTo: verifiedOrder.routeTo || '',
+      routeETA: verifiedOrder.routeETA || ''
     };
 
     setOrders([newOrder, ...orders]);
     setCart([]);
     setActiveCoupon(null);
+    setPendingOrderId(null); // Clear so next checkout creates a fresh order
     setLiveOrderTrackingId(verifiedOrder._id);
     setCheckoutStep('tracking');
-    setShowRazorpayModal(false);
+    setShowPaymentModal(false);
     setPaymentProcessing(false);
   };
 
@@ -290,10 +331,17 @@ export default function CustomerMenu({
         try {
           const checkRes = await apiRequest(`/orders/${pendingOrderId}`);
           if (checkRes.success && checkRes.order) {
-            activeOrder = checkRes.order;
+            // Only reuse if the order is NOT already paid
+            if (checkRes.order.paymentStatus === 'PAID') {
+              console.warn("Previous pending order is already paid. Creating a new one.");
+              setPendingOrderId(null);
+            } else {
+              activeOrder = checkRes.order;
+            }
           }
         } catch (err) {
           console.warn("Could not retrieve existing pending order. Creating a new one:", err.message);
+          setPendingOrderId(null);
         }
       }
 
@@ -303,7 +351,7 @@ export default function CustomerMenu({
           method: 'POST',
           body: JSON.stringify({
             restaurantId: restaurant.id,
-            tableNo: activeTableNo || 'T1',
+            tableNo: activeTableNo ? activeTableNo : (localOrderType === 'table' ? (enteredTableNo || 'T1') : ''),
             items: cart.map(i => ({
               menuItem: i.id,
               name: i.name,
@@ -311,7 +359,12 @@ export default function CustomerMenu({
               selectedAddons: i.selectedAddons || [],
               price: i.discountPrice || i.price
             })),
-            paymentMethod: 'razorpay'
+            paymentMethod: 'online',
+            orderType: activeTableNo ? 'table' : localOrderType,
+            pickupTime: activeTableNo ? '' : (localOrderType === 'scheduled' ? `${localPickupDate} ${localPickupTime}` : ''),
+            pickupCode: activeTableNo ? '' : (localOrderType === 'scheduled' ? Math.floor(1000 + Math.random() * 9000).toString() : ''),
+            customerName: activeTableNo ? (currentUser?.name || 'Guest Diner') : localCustomerName,
+            customerPhone: activeTableNo ? (currentUser?.phone || '') : localCustomerPhone
           })
         });
 
@@ -323,23 +376,19 @@ export default function CustomerMenu({
       }
 
       // 2. Create Razorpay order on backend
-      const rzpRes = await apiRequest('/payments/create-order', {
+      const rzRes = await apiRequest('/payments/create-order', {
         method: 'POST',
         body: JSON.stringify({ orderId: activeOrder._id })
       });
 
-      if (!rzpRes.success) {
-        throw new Error(rzpRes.error || "Failed to initialize payment gateway order");
+      if (!rzRes.success) {
+        throw new Error(rzRes.error || "Failed to initialize payment gateway order");
       }
 
       // 3. Check if it's a mock payment (sandbox mode without valid keys)
-      if (rzpRes.isMock) {
-        if (rzpRes.note) {
-          setGatewayFallbackNote(rzpRes.note);
-        } else {
-          setGatewayFallbackNote(null);
-        }
-        setShowRazorpayModal(true);
+      if (rzRes.isMock) {
+        setGatewayFallbackNote("Platform running in mock mode. Click below to simulate successful payment splits.");
+        setShowPaymentModal(true);
         setPaymentProcessing(false);
         return;
       }
@@ -350,40 +399,20 @@ export default function CustomerMenu({
         throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
       }
 
-      // 5. Open Razorpay payment gateway
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_mock_key_id',
-        amount: rzpRes.amount,
-        currency: rzpRes.currency || 'INR',
-        name: restaurant.name,
-        description: `Order Payment - Table ${activeTableNo || 'T1'}`,
-        image: restaurant.logo || 'https://img.icons8.com/fluency/196/hamburger.png',
-        order_id: rzpRes.id,
-        // Optimize checkout for UPI Intent priority
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: 'UPI / Google Pay / PhonePe',
-                instruments: [
-                  {
-                    method: 'upi',
-                    apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
-                  }
-                ]
-              }
-            },
-            sequence: ['block.upi', 'block.card', 'block.netbanking']
-          }
-        },
-        upi_intent: true,
-        handler: async function (response) {
-          try {
-            setPaymentProcessing(true);
-            setLiveOrderTrackingId(activeOrder._id); // Subscribe to updates immediately
-            joinRoom(`order_${activeOrder._id}`);
+      setLiveOrderTrackingId(activeOrder._id);
+      joinRoom(`order_${activeOrder._id}`);
 
-            // 6. Verify payment signature on backend
+      // 5. Open Razorpay payment gateway options
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key',
+        amount: rzRes.amount,
+        currency: rzRes.currency || 'INR',
+        name: restaurant.name,
+        description: `Order settlement via Razorpay Standard Checkout`,
+        order_id: rzRes.id,
+        handler: async function (response) {
+          console.log("Razorpay checkout completed, verifying on backend...");
+          try {
             const verifyRes = await apiRequest('/payments/verify', {
               method: 'POST',
               body: JSON.stringify({
@@ -396,40 +425,40 @@ export default function CustomerMenu({
             });
 
             if (verifyRes.success && verifyRes.order) {
-              if (verifyRes.order.paymentStatus === 'PAID') {
-                finalizeSuccessfulOrder(verifyRes.order);
-              } else {
-                // If awaiting webhook finalization, move to tracking step but keep cart temporarily
-                console.log("Payment signature verified. Webhook finalization pending.");
-                setCheckoutStep('tracking');
-              }
+              finalizeSuccessfulOrder(verifyRes.order);
             } else {
-              setPaymentError("Signature check returned failure. Please contact support.");
+              setPaymentError("Payment verification failed on server.");
               setPaymentProcessing(false);
             }
           } catch (err) {
-            console.error("Signature verification error:", err);
-            setPaymentError("Error verifying payment signature: " + err.message);
+            setPaymentError("Verification request failed: " + err.message);
             setPaymentProcessing(false);
           }
         },
         prefill: {
-          name: "Guest Customer",
-          contact: "+919988776655"
+          name: activeOrder.customerName || 'Guest Customer',
+          contact: activeOrder.customerPhone || '9999999999'
         },
         theme: {
-          color: restaurant.theme?.primaryColor || '#bd3838'
+          color: restaurant.theme?.primaryColor || '#ff385c'
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
+            console.log("Checkout modal dismissed by user");
+            setPaymentError("Payment cancelled by user.");
             setPaymentProcessing(false);
-            setPaymentError("Payment flow closed. You can retry payment below.");
           }
         }
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+      const rzp1 = new window.Razorpay(options);
+      rzp1.on('payment.failed', function (response) {
+        console.error("Razorpay checkout error:", response.error);
+        setPaymentError(response.error.description || "Checkout payment failed.");
+        setPaymentProcessing(false);
+      });
+      
+      rzp1.open();
     } catch (err) {
       console.error("Payment checkout submission error:", err);
       setPaymentError("Checkout failed: " + err.message);
@@ -444,7 +473,7 @@ export default function CustomerMenu({
     }
     setPaymentProcessing(true);
     setPaymentError(null);
-    setShowRazorpayModal(false);
+    setShowPaymentModal(false);
 
     try {
       setLiveOrderTrackingId(pendingOrderId);
@@ -455,6 +484,7 @@ export default function CustomerMenu({
         body: JSON.stringify({
           orderId: pendingOrderId,
           isMock: true,
+          razorpay_order_id: `mock_order_${Math.random().toString(36).substring(5)}`,
           razorpay_payment_id: `mock_pay_${Math.random().toString(36).substring(5)}`
         })
       });
@@ -477,45 +507,48 @@ export default function CustomerMenu({
   }, [orders, liveOrderTrackingId]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="customer-theme w-full max-w-md mx-auto bg-white text-slate-800 md:border md:border-slate-100 md:rounded-[40px] md:shadow-2xl md:my-6 overflow-hidden relative min-h-screen flex flex-col justify-between"
-    >
-      {/* Premium Overlapping Hero Header */}
+    <div className="wrap customer-theme md:my-6 md:shadow-2xl">
+      {/* Hero Header */}
       {!checkoutStep && (
-        <div className="relative">
-          {/* Background Banner */}
-          <div 
-            className="h-44 bg-cover bg-center relative"
-            style={{ backgroundImage: `url(${restaurant.banner || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=600&auto=format&fit=crop'})` }}
-          >
-            {/* Top Row Controls */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition"
-                >
-                  <ArrowLeft className="w-4.5 h-4.5" />
-                </button>
-              )}
-              <div className="flex gap-2">
-                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition">
-                  <Heart className="w-4.5 h-4.5 text-red-500 fill-red-500" />
-                </button>
-                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition">
-                  <Percent className="w-4.5 h-4.5 text-yellow-400" />
-                </button>
-              </div>
+        <div className="hero">
+          <div className="hero-art">
+            <div 
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `url(${resolveImageUrl(restaurant.banner || 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1200&auto=format&fit=crop')})`
+              }}
+            />
+            {/* Dark gradient overlay for typography readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/20 z-0"></div>
+          </div>
+          <div className="hero-top-bar">
+            <button 
+              onClick={onBack} 
+              className="hbtn"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </button>
+            <div className="hbtn-row">
+              <button className="hbtn" aria-label="Save"><Heart className="w-4 h-4 text-white" /></button>
+              <button className="hbtn" aria-label="Share"><Share2 className="w-4 h-4 text-white" /></button>
             </div>
           </div>
-
-          {/* Overlapping Brand Info Card */}
-          <div className="relative px-4 pb-4 mt-4 z-10 text-center">
-            {/* Restaurant Name */}
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">{restaurant.name}</h2>
+          <div className="hero-content text-left flex gap-4 items-end z-10 w-full">
+            <img 
+              src={resolveImageUrl(restaurant.logo)} 
+              alt={restaurant.name} 
+              className="w-14 h-14 rounded-2xl object-contain bg-slate-900/90 p-1.5 border border-white/10 shadow-lg shadow-black/40 backdrop-blur-sm shrink-0" 
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            <div className="space-y-1 text-left flex-1 min-w-0">
+              <div className="hero-name" style={{ marginBottom: 0 }}>{restaurant.name}</div>
+              {restaurant.tagline && (
+                <div className="text-[11px] text-slate-300 font-medium opacity-90 leading-snug line-clamp-1 truncate">
+                  {restaurant.tagline}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -524,16 +557,14 @@ export default function CustomerMenu({
       {checkoutStep && (
         <div className="bg-white/80 border-b border-slate-100 py-4 px-4 flex justify-between items-center backdrop-blur-md">
           <div className="flex items-center gap-3">
-            {onBack && (
-              <button
-                onClick={() => setCheckoutStep(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 border border-slate-200/50 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition flex-shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <img src={restaurant.logo} className="w-10 h-10 rounded-xl object-contain bg-white p-1.5 border border-slate-100 shadow-md" alt={restaurant.name} />
-            <div>
+            <button
+              onClick={() => setCheckoutStep(null)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 border border-slate-200/50 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition flex-shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <img src={resolveImageUrl(restaurant.logo)} className="w-10 h-10 rounded-xl object-contain bg-white p-1.5 border border-slate-100 shadow-md" alt={restaurant.name} />
+            <div className="text-left">
               <h2 className="text-base font-extrabold text-slate-900 leading-tight">
                 {restaurant.name}
               </h2>
@@ -542,78 +573,155 @@ export default function CustomerMenu({
         </div>
       )}
 
-      <div className="flex-1 flex flex-col justify-between pt-6 pb-28">
+      <div className="flex-1 flex flex-col justify-between pt-2 pb-24">
         {!checkoutStep ? (
-          <div id="menu-top-anchor" className="space-y-6 px-4 scroll-mt-24">
-            <div className="space-y-3">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                <input
-                  type="text"
-                  placeholder={t('searchFood')}
-                  className="w-full bg-white border border-slate-200/80 pl-10 pr-4 py-3 rounded-2xl text-xs focus:outline-none focus:border-red-500 text-slate-800 shadow-sm shadow-slate-100/50"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+          <div id="menu-top-anchor" className="space-y-4 scroll-mt-24">
+            {/* Search Input Row */}
+            <div className="search-row" role="search">
+              <Search className="w-4 h-4 text-[var(--ink3)]" />
+              <input
+                type="text"
+                placeholder={t('searchFood')}
+                className="bg-transparent border-none outline-none text-xs text-slate-800 w-full placeholder:text-slate-400"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <div className="flt">
+                <SlidersHorizontal className="w-4 h-4 text-[var(--ink3)]" />
               </div>
+            </div>
 
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                {[
-                  { id: 'all', label: 'All Dishes', icon: Utensils, color: 'bg-slate-100 text-slate-600 border-slate-200/50 hover:bg-slate-200/50' },
-                  { id: 'veg', label: 'Veg Only', icon: Leaf, color: 'bg-green-500/10 text-green-600 border-green-500/20' },
-                  { id: 'non-veg', label: 'Non-Veg', icon: Flame, color: 'bg-red-500/10 text-red-600 border-red-500/20' },
-                  { id: 'vegan', label: 'Vegan', icon: Sprout, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' }
-                ].map(type => {
-                  const Icon = type.icon;
-                  return (
-                    <button
-                      key={type.id}
-                      onClick={() => setFoodTypeFilter(type.id)}
-                      className={`px-3.5 py-2 rounded-xl text-[10px] font-bold border transition flex items-center gap-1.5 whitespace-nowrap ${
-                        foodTypeFilter === type.id
-                          ? 'bg-gradient-to-r from-red-500 to-orange-500 border-transparent text-white shadow-lg shadow-red-500/20'
-                          : `${type.color} hover:bg-slate-200`
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {type.label}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Dietary filter Pills */}
+            <div className="pills-row" role="group" aria-label="Dietary filter">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'veg', label: 'Veg' },
+                { id: 'non-veg', label: 'Non-veg' },
+                { id: 'vegan', label: 'Vegan' },
+                { id: 'spicy', label: 'Spicy' }
+              ].map(type => (
+                <button
+                  key={type.id}
+                  onClick={() => setFoodTypeFilter(type.id)}
+                  className={`pill ${foodTypeFilter === type.id ? 'on' : ''}`}
+                >
+                  {type.label}
+                </button>
+              ))}
             </div>
 
             {/* Sticky Categories Bar */}
-            <div className="sticky top-0 bg-white/95 backdrop-blur-md py-2.5 z-20 border-b border-slate-100 -mx-4 px-4 shadow-sm">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <div className="tabs-row sticky top-0 bg-[var(--bg)]/95 backdrop-blur-md py-2.5 z-20 border-b border-slate-200/50">
+              <button
+                onClick={() => handleCategoryClick('All')}
+                className={`tb ${selectedCategoryTab === 'All' ? 'on' : ''}`}
+              >
+                Popular
+              </button>
+              {filteredCategories.map(cat => (
                 <button
-                  onClick={() => handleCategoryClick('All')}
-                  className={`px-4 py-2 text-xs font-extrabold whitespace-nowrap transition border-b-2 ${
-                    selectedCategoryTab === 'All'
-                      ? 'border-red-500 text-slate-900 font-black'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
+                  key={cat.id}
+                  onClick={() => handleCategoryClick(cat.name)}
+                  className={`tb ${selectedCategoryTab === cat.name ? 'on' : ''}`}
                 >
-                  Popular
+                  {cat.name}
                 </button>
-                {filteredCategories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => handleCategoryClick(cat.name)}
-                    className={`px-4 py-2 text-xs font-extrabold whitespace-nowrap transition border-b-2 ${
-                      selectedCategoryTab === cat.name
-                        ? 'border-red-500 text-slate-900 font-black'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
 
-            {/* Menu Items Grouped by Category */}
-            <div className="space-y-8">
+            {/* Most Ordered Section */}
+            {mostOrderedMenus.length > 0 && (
+              <>
+                <div className="lbl">Most ordered</div>
+                <div className="hscroll" role="list">
+                  {mostOrderedMenus.map(item => {
+                    const cartItem = cart.find(i => i.id === item.id);
+                    // Cycle warm, sage, rose backgrounds for aesthetic visual look
+                    const bgClasses = ['c-warm', 'c-sage', 'c-rose', 'c-sky'];
+                    const bgClass = bgClasses[item.name.length % 4];
+                    return (
+                      <div className="hcard" key={item.id}>
+                        <div className={`hcard-img ${bgClass}`} onClick={() => setSelectedFoodPreview(item)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                          <div className={`vmark ${item.foodType === 'non-veg' ? 'n' : 'v'}`} title={item.foodType}></div>
+                          {item.image ? (
+                            <img 
+                              src={resolveImageUrl(item.image)} 
+                              alt={item.name} 
+                              className="w-full h-full object-cover rounded-t-[var(--r)]" 
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center text-slate-400 gap-1.5 rounded-t-[var(--r)]"
+                            style={{ display: item.image ? 'none' : 'flex' }}
+                          >
+                            <Utensils className="w-6 h-6 text-slate-300" />
+                            <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Fresh Dish</span>
+                          </div>
+                          {cartItem ? (
+                            <div className="absolute bottom-2 right-2 flex items-center bg-[var(--ink)] rounded-full py-0.5 px-1.5 shadow-lg z-10" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => handleDecreaseQuantity(item.id)} className="text-white text-[12px] font-black px-1.5">−</button>
+                              <span className="text-white text-[11px] font-extrabold px-1.5">{cartItem.quantity}</span>
+                              <button onClick={() => handleAddToCart(item)} className="text-white text-[12px] font-black px-1.5">+</button>
+                            </div>
+                          ) : (
+                            <button 
+                              className="hcard-add"
+                              onClick={(e) => { e.stopPropagation(); handleAddToCart(item); }}
+                            >
+                              <Plus className="w-4 h-4 text-white" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="hcard-body">
+                          <div className="hcard-name line-clamp-1">{item.name}</div>
+                          <div className="hcard-sub line-clamp-1">{item.description}</div>
+                          <div className="hcard-foot">
+                            <div>
+                              <span className="hcard-price">₹{item.discountPrice || item.price}</span>
+                              {item.discountPrice && <span className="hcard-strike">₹{item.price}</span>}
+                            </div>
+                            <div className="stars">
+                              <Star className="w-2.5 h-2.5 fill-[#c8a84b] text-[#c8a84b]" />
+                              <span className="star-n">{item.rating || '4.8'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Offer Coupon Card */}
+            {coupons && coupons.length > 0 && (
+              <div 
+                className="offer-card" 
+                onClick={() => {
+                  if (cartSubtotal < coupons[0].minOrderAmount) {
+                    alert(`This coupon requires a minimum order amount of ₹${coupons[0].minOrderAmount}`);
+                  } else {
+                    setActiveCoupon(coupons[0]);
+                  }
+                }} 
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="offer-icon"><Tag className="w-5 h-5 text-white" /></div>
+                <div className="text-left flex-1 min-w-0">
+                  <div className="offer-t truncate">{coupons[0].code} - {coupons[0].description}</div>
+                  <div className="offer-s">Click to auto-apply coupon</div>
+                </div>
+                <div className="offer-arr"><ChevronRight className="w-4 h-4 text-white/40" /></div>
+              </div>
+            )}
+
+            {/* Main Menu List Segment */}
+            <div className="lbl">Main menu</div>
+            <div className="list-wrap">
               {filteredCategories.map(cat => {
                 const categoryMenus = filteredMenus.filter(item => item.categoryId === cat.id);
                 if (categoryMenus.length === 0) return null;
@@ -622,71 +730,60 @@ export default function CustomerMenu({
                   <div 
                     key={cat.id} 
                     id={`category-section-${cat.id}`} 
-                    className="space-y-3 pt-2 scroll-mt-20"
+                    className="space-y-1 pt-1 scroll-mt-20"
                   >
-                    <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
-                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">{cat.name}</h3>
-                      <span className="text-[10px] text-slate-400 font-bold">({categoryMenus.length})</span>
+                    <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest text-left pb-1 border-b border-slate-200/50 mt-4">
+                      {cat.name} ({categoryMenus.length})
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      {categoryMenus.map((item) => {
-                        const cartItem = cart.find(i => i.id === item.id);
-                        return (
-                          <div key={item.id} className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm shadow-slate-100/50 flex flex-col justify-between hover:shadow-md transition">
-                            {/* Card Top Image Block */}
-                            <div className="relative h-28 bg-slate-50 cursor-pointer overflow-hidden group" onClick={() => setSelectedFoodPreview(item)}>
-                              <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                              
-                              {/* Veg/Diet type Badge */}
-                              <div className="absolute top-2 left-2">
-                                <span className={`px-1.5 py-0.5 rounded-md text-[7px] uppercase font-bold text-white shadow-md ${
-                                  item.foodType === 'veg' ? 'bg-green-600' : item.foodType === 'non-veg' ? 'bg-red-600' : 'bg-emerald-600'
-                                }`}>
-                                  {item.foodType}
-                                </span>
-                              </div>
-
-                              {/* Favorite Heart Button */}
-                              <div className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm p-1.5 rounded-full border border-slate-100" onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}>
-                                <Heart className={`w-3.5 h-3.5 ${favorites.includes(item.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
-                              </div>
-
-                              {/* Floating Add to Cart Trigger Button */}
-                              <div className="absolute bottom-2 right-2">
+                    {categoryMenus.map((item) => {
+                      const cartItem = cart.find(i => i.id === item.id);
+                      const bgClasses = ['warm', 'sage', 'rose'];
+                      const bgClass = bgClasses[item.name.length % 3];
+                      return (
+                        <div className="lrow" key={item.id}>
+                          <div className={`limg ${bgClass}`} onClick={() => setSelectedFoodPreview(item)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center', position: 'relative' }}>
+                            <div className={`vmark ${item.foodType === 'non-veg' ? 'n' : 'v'}`} title={item.foodType}></div>
+                            {item.image ? (
+                              <img 
+                                src={resolveImageUrl(item.image)} 
+                                alt={item.name} 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-400"
+                              style={{ display: item.image ? 'none' : 'flex' }}
+                            >
+                              <Utensils className="w-4 h-4 text-slate-300" />
+                            </div>
+                          </div>
+                          <div className="ldet">
+                            <div className="lname" onClick={() => setSelectedFoodPreview(item)} style={{ cursor: 'pointer' }}>{item.name}</div>
+                            <div className="ldesc">{item.description}</div>
+                            <div className="lfoot">
+                              <div className="lprice">₹{item.discountPrice || item.price}</div>
+                              <div className="ladd-wrap">
                                 {cartItem ? (
-                                  <div className="flex items-center bg-red-500 rounded-full py-0.5 px-1.5 shadow-lg border border-red-400">
-                                    <button onClick={(e) => { e.stopPropagation(); handleDecreaseQuantity(item.id); }} className="text-white text-[10px] font-black px-1">-</button>
-                                    <span className="text-white text-[10px] font-extrabold px-1.5">{cartItem.quantity}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); handleAddToCart(item); }} className="text-white text-[10px] font-black px-1">+</button>
+                                  <div className="lqty">
+                                    <button className="qb" onClick={() => handleDecreaseQuantity(item.id)}>−</button>
+                                    <span className="qn">{cartItem.quantity}</span>
+                                    <button className="qb" onClick={() => handleAddToCart(item)}>+</button>
                                   </div>
                                 ) : (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); handleAddToCart(item); }} 
-                                    className="w-7 h-7 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white font-extrabold shadow-lg transition hover:scale-110"
-                                  >
-                                    +
+                                  <button className="ladd" onClick={() => handleAddToCart(item)}>
+                                    <span className="ladd-lbl">Add</span>
                                   </button>
                                 )}
                               </div>
                             </div>
-
-                            {/* Card Bottom Details Block */}
-                            <div className="p-3.5 space-y-1 text-left">
-                              <h4 className="text-xs font-extrabold text-slate-800 cursor-pointer line-clamp-1 hover:text-red-500 transition" onClick={() => setSelectedFoodPreview(item)}>
-                                {item.name}
-                              </h4>
-                              
-                              <div className="flex items-baseline gap-1.5">
-                                <span className="text-xs font-black text-slate-900">₹{item.discountPrice || item.price}</span>
-                                {item.discountPrice && (
-                                  <span className="text-[9px] text-slate-400 line-through font-bold">₹{item.price}</span>
-                                )}
-                              </div>
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -711,7 +808,7 @@ export default function CustomerMenu({
             <div className="space-y-6">
               {cart.map(item => (
                 <div key={item.id} className="bg-white rounded-2xl border border-slate-100 p-3.5 flex justify-between items-center shadow-sm">
-                  <div>
+                  <div className="text-left">
                     <h4 className="text-xs font-bold text-slate-800 leading-tight">{item.name}</h4>
                     <span className="text-[10px] text-slate-500 font-bold">₹{item.discountPrice || item.price} x {item.quantity}</span>
                   </div>
@@ -724,9 +821,102 @@ export default function CustomerMenu({
               ))}
 
               {activeTableNo && (
-                <div className="bg-red-50/80 border border-red-200 rounded-2xl p-4 flex gap-3 text-xs">
+                <div className="bg-red-50/80 border border-red-200 rounded-2xl p-4 flex gap-3 text-xs text-left">
                   <QrCode className="w-5 h-5 text-red-500 animate-pulse" />
                   <p className="text-slate-700">Dine-in table order active for <strong className="text-red-500 font-extrabold">Table {activeTableNo}</strong>. Serving directly to your table!</p>
+                </div>
+              )}
+
+              {!activeTableNo && (
+                <div className="space-y-4 text-left border border-slate-100 bg-slate-50/50 p-4 rounded-3xl">
+                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider block">Choose Dining / Pickup Option</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setLocalOrderType('table')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all cursor-pointer ${
+                        localOrderType === 'table' 
+                          ? 'border-red-500 bg-red-50/30 text-red-600' 
+                          : 'border-slate-200/60 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <Utensils className="w-5 h-5 mb-1 text-slate-500" />
+                      <span className="text-xs font-black">Table Dine-In</span>
+                      <span className="text-[8px] text-slate-400 mt-0.5 text-center">Eat at restaurant</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLocalOrderType('scheduled')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all cursor-pointer ${
+                        localOrderType === 'scheduled' 
+                          ? 'border-red-500 bg-red-50/30 text-red-600' 
+                          : 'border-slate-200/60 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      <Clock className="w-5 h-5 mb-1 text-slate-500" />
+                      <span className="text-xs font-black">Scheduled Pickup</span>
+                      <span className="text-[8px] text-slate-400 mt-0.5 text-center">Pre-order takeaway</span>
+                    </button>
+                  </div>
+
+                  {localOrderType === 'table' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-extrabold uppercase">Enter Table Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. T4, T5"
+                        value={enteredTableNo}
+                        onChange={(e) => setEnteredTableNo(e.target.value.toUpperCase())}
+                        className="w-full bg-white border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500"
+                      />
+                    </div>
+                  )}
+
+                  {localOrderType === 'scheduled' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 font-extrabold uppercase">Pickup Date</label>
+                        <input
+                          type="date"
+                          value={localPickupDate}
+                          onChange={(e) => setLocalPickupDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 px-2 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none focus:border-red-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 font-extrabold uppercase">Pickup Time</label>
+                        <input
+                          type="time"
+                          value={localPickupTime}
+                          onChange={(e) => setLocalPickupTime(e.target.value)}
+                          className="w-full bg-white border border-slate-200 px-2 py-1.5 rounded-xl text-[10px] font-bold focus:outline-none focus:border-red-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4 pt-1 border-t border-slate-100/80">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-extrabold uppercase">Your Name</label>
+                      <input
+                        type="text"
+                        placeholder="Your name"
+                        value={localCustomerName}
+                        onChange={(e) => setLocalCustomerName(e.target.value)}
+                        className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-extrabold uppercase">Phone Number</label>
+                      <input
+                        type="text"
+                        placeholder="Phone Number"
+                        value={localCustomerPhone}
+                        onChange={(e) => setLocalCustomerPhone(e.target.value)}
+                        className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -734,7 +924,7 @@ export default function CustomerMenu({
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="APPLY PLATFORM COUPONS"
+                    placeholder="APPLY COUPONS"
                     className="flex-1 bg-white border border-slate-200 px-4 py-2.5 text-xs rounded-xl uppercase text-slate-800 font-bold"
                     value={activeCoupon ? activeCoupon.code : ''}
                     readOnly
@@ -748,7 +938,13 @@ export default function CustomerMenu({
                       {coupons.map(cop => (
                         <button
                           key={cop.code}
-                          onClick={() => setActiveCoupon(cop)}
+                          onClick={() => {
+                            if (cartSubtotal < cop.minOrderAmount) {
+                              alert(`This coupon requires a minimum order amount of ₹${cop.minOrderAmount}`);
+                            } else {
+                              setActiveCoupon(cop);
+                            }
+                          }}
                           className="w-full text-left p-1.5 hover:bg-slate-50 rounded text-[9px] text-slate-800 border-b border-slate-100"
                         >
                           <span className="font-black text-yellow-500">{cop.code}</span>
@@ -760,7 +956,7 @@ export default function CustomerMenu({
                 </div>
               </div>
 
-              <div className="bg-white rounded-3xl border border-slate-100 p-4 space-y-2.5 text-xs text-slate-600 shadow-sm shadow-slate-100">
+              <div className="bg-white rounded-3xl border border-slate-100 p-4 space-y-2.5 text-xs text-slate-600 shadow-sm shadow-slate-100 text-left">
                 <div className="flex justify-between">
                   <span>{t('subtotal')}</span>
                   <span className="font-bold text-slate-900">₹{cartSubtotal}</span>
@@ -802,9 +998,9 @@ export default function CustomerMenu({
 
               <button
                 onClick={handlePaymentCheckoutSubmit}
-                className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-extrabold py-3.5 rounded-2xl shadow hover:opacity-95 transition"
+                className="w-full bg-[var(--ink)] text-white font-extrabold py-3.5 rounded-2xl shadow hover:opacity-90 transition"
               >
-                {t('placeOrder')}
+                Pay
               </button>
             </div>
           </div>
@@ -843,7 +1039,40 @@ export default function CustomerMenu({
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                {/* Secure Scheduled Pre-order tracking code */}
+                {activeTrackingOrder.orderType === 'scheduled' && (
+                  <div className="bg-slate-950 text-white rounded-[24px] p-6 text-center space-y-4 relative overflow-hidden shadow-inner">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/30 to-purple-900/30 z-0"></div>
+                    <div className="relative z-10 space-y-3">
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-block">
+                        Pickup Coupon Code
+                      </span>
+                      {activeTrackingOrder.pickupCode ? (
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-1">
+                          <span className="text-[9px] text-slate-400 uppercase tracking-widest font-black block">Show Code to Cashier</span>
+                          <span className="text-3xl font-black text-amber-300 tracking-wider font-mono block animate-pulse">
+                            {activeTrackingOrder.pickupCode}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 animate-pulse">Assigning secure OTP code...</p>
+                      )}
+                      
+                      <div className="space-y-1 text-xs text-left pt-2">
+                        <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider block">Pickup Schedule</span>
+                        <div className="flex items-center gap-2 text-slate-200 font-bold bg-white/5 p-3 rounded-xl border border-white/5 mt-1">
+                          <Clock className="w-4 h-4 text-amber-400" />
+                          <div>
+                            <span className="block text-[9px] text-slate-400">Scheduled pickup time</span>
+                            <span>{activeTrackingOrder.pickupTime || 'Advance Pickup'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-4 text-left">
                   {[
                     { 
                       title: 'Order Placed & Paid', 
@@ -880,46 +1109,50 @@ export default function CustomerMenu({
         )}
       </div>
 
-      {!checkoutStep && cart.length > 0 && (
-        <div className="absolute bottom-4 left-4 right-4 bg-gradient-to-r from-red-500 to-orange-500 text-white py-3 px-6 rounded-2xl flex justify-between items-center shadow-lg z-20 cursor-pointer animate-pulse-gentle" onClick={() => setCheckoutStep('cart')}>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold">{cart.reduce((sum, i) => sum + i.quantity, 0)} Items Added</span>
+      {/* Dynamic bottom navigation bar */}
+      <div className="nav" role="navigation" aria-label="Main navigation">
+        <div className={`ni ${!checkoutStep ? 'on' : ''}`} onClick={() => setCheckoutStep(null)}>
+          <Utensils className="w-5 h-5" />
+          <span>Menu</span>
+        </div>
+        <div className={`ni ${checkoutStep === 'cart' ? 'on' : ''}`} onClick={() => setCheckoutStep('cart')}>
+          <div className="cart-rel">
+            <ShoppingBag className="w-5 h-5" />
+            <div className="cbadge" id="cbadge">{cart.reduce((sum, i) => sum + i.quantity, 0)}</div>
           </div>
-          <div className="flex items-center gap-1 text-sm font-black">
-            <span>₹{cartTotal}</span>
-            <ArrowRight className="w-4 h-4" />
+          <span>Cart</span>
+        </div>
+        {liveOrderTrackingId && (
+          <div className={`ni ${checkoutStep === 'tracking' ? 'on' : ''}`} onClick={() => setCheckoutStep('tracking')}>
+            <Activity className="w-5 h-5" />
+            <span>Tracking</span>
           </div>
-        </div>
-      )}
-
-      {/* Footer Navigation & Brand Label */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 pt-3 pb-4 px-6 flex flex-col items-center gap-2 z-10">
-        <div className="flex justify-around items-center w-full text-[10px] font-bold text-slate-500">
-          <button
-            onClick={() => setCheckoutStep(null)}
-            className={`flex flex-col items-center gap-1 transition ${!checkoutStep ? 'text-red-500' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            <Utensils className="w-4 h-4" />
-            <span>Menu</span>
-          </button>
-          <button
-            onClick={() => setCheckoutStep('cart')}
-            className={`flex flex-col items-center gap-1 transition ${checkoutStep === 'cart' ? 'text-red-500' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Cart</span>
-          </button>
-        </div>
-        <div className="text-[9px] text-slate-400 font-bold tracking-wider uppercase opacity-85 mt-1">
-          Powered by <span className="text-slate-700 font-extrabold">Skyweb IT Solution Pvt Ltd</span>
-        </div>
+        )}
       </div>
 
+      {/* Selected Food Details Modal */}
       {selectedFoodPreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-sm bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-2xl space-y-4 pb-6">
-            <div className="relative h-56 bg-slate-50">
-              <img src={selectedFoodPreview.image} alt={selectedFoodPreview.name} className="w-full h-full object-cover" />
+            <div className="relative h-56 bg-slate-50 flex items-center justify-center">
+              {selectedFoodPreview.image ? (
+                <img 
+                  src={resolveImageUrl(selectedFoodPreview.image)} 
+                  alt={selectedFoodPreview.name} 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div 
+                className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col items-center justify-center text-slate-400 gap-2"
+                style={{ display: selectedFoodPreview.image ? 'none' : 'flex' }}
+              >
+                <Utensils className="w-10 h-10 text-slate-300" />
+                <span className="text-xs uppercase tracking-wider font-extrabold text-slate-400">Gourmet Selection</span>
+              </div>
               <button onClick={() => setSelectedFoodPreview(null)} className="absolute top-4 right-4 bg-white/80 border border-slate-100 p-1.5 rounded-full text-slate-700">
                 <X className="w-4 h-4" />
               </button>
@@ -929,7 +1162,7 @@ export default function CustomerMenu({
               <p className="text-xs text-slate-600">{selectedFoodPreview.description}</p>
               <div className="flex justify-between items-center">
                 <span className="text-xl font-black text-slate-900">₹{selectedFoodPreview.price}</span>
-                <button onClick={() => { handleAddToCart(selectedFoodPreview); setSelectedFoodPreview(null); }} className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs py-2 px-6 rounded-xl">
+                <button onClick={() => { handleAddToCart(selectedFoodPreview); setSelectedFoodPreview(null); }} className="bg-[var(--ink)] hover:opacity-90 text-white font-bold text-xs py-2.5 px-6 rounded-xl">
                   ADD TO BASKET
                 </button>
               </div>
@@ -938,12 +1171,13 @@ export default function CustomerMenu({
         </div>
       )}
 
-      {showRazorpayModal && (
+      {/* Secure Sandbox Payment Modal */}
+      {showPaymentModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-sm bg-white border border-slate-100 rounded-3xl p-6 shadow-2xl space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <span className="text-sm font-bold text-slate-900">Razorpay Secure Sandbox Payment</span>
-              <button onClick={() => setShowRazorpayModal(false)} className="text-slate-400">
+              <span className="text-sm font-bold text-slate-900">Razorpay Route Sandbox Split Checkout</span>
+              <button onClick={() => setShowPaymentModal(false)} className="text-slate-400">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -951,10 +1185,10 @@ export default function CustomerMenu({
               {gatewayFallbackNote && (
                 <div className="bg-amber-50 border border-amber-200/50 rounded-2xl p-4 text-xs text-amber-800 text-left space-y-1">
                   <p className="font-bold flex items-center gap-1.5 text-amber-600">
-                    <span>⚠️ Gateway Outage Recovery</span>
+                    <span>⚠️ Gateway Fallback Mode</span>
                   </p>
                   <p className="text-[11px] leading-relaxed text-amber-700">
-                    Our payment provider is experiencing a temporary outage. You can complete your order smoothly using our sandbox/offline simulator.
+                    {gatewayFallbackNote}
                   </p>
                 </div>
               )}
@@ -970,6 +1204,6 @@ export default function CustomerMenu({
         </div>
       )}
 
-    </motion.div>
+    </div>
   );
 }

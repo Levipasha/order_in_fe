@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Volume2, VolumeX, Tv, Clock, CheckCircle2, AlertCircle, Sparkles, QrCode } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
+import Loader from '../Loader';
 import { socket, joinRoom } from '../../utils/socket';
 
 export default function QueueTvView({ restaurantSlug, onBack }) {
@@ -163,10 +164,7 @@ export default function QueueTvView({ restaurantSlug, onBack }) {
   if (loading && !restaurant) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4">
-        <div className="w-14 h-14 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm font-black text-slate-400 uppercase tracking-widest animate-pulse">
-          Opening Lobby Queue TV Channel...
-        </p>
+        <Loader message="Opening Lobby Queue TV Channel..." size="w-28 h-28" dark={true} />
       </div>
     );
   }
@@ -284,11 +282,19 @@ export default function QueueTvView({ restaurantSlug, onBack }) {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
-                      className="bg-slate-900/60 border-2 border-slate-800 rounded-3xl p-5 text-center flex flex-col justify-center gap-1 shadow-md hover:border-amber-500/35 transition"
+                      className="bg-slate-900/60 border-2 border-slate-800 rounded-3xl p-5 text-center flex flex-col justify-center gap-2 shadow-md hover:border-amber-500/35 transition"
                     >
-                      <span className="text-2xl font-black text-slate-100 font-mono tracking-wider">
-                        #{order.id.slice(-4).toUpperCase()}
-                      </span>
+                      {/* Dish names */}
+                      <div className="space-y-1">
+                        {(order.items || []).map((item, idx) => (
+                          <p key={idx} className="text-base font-black text-slate-100 leading-tight">
+                            {item.name} {item.quantity > 1 && <span className="text-amber-400">×{item.quantity}</span>}
+                          </p>
+                        ))}
+                        {(!order.items || order.items.length === 0) && (
+                          <p className="text-base font-black text-slate-400">Order #{order.id.slice(-4).toUpperCase()}</p>
+                        )}
+                      </div>
                       {order.tableNo && (
                         <span className="text-[10px] font-black text-amber-500 uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded-md inline-block mx-auto">
                           Table {order.tableNo}
@@ -344,14 +350,22 @@ export default function QueueTvView({ restaurantSlug, onBack }) {
                       }}
                       exit={{ scale: 0.6, opacity: 0 }}
                       transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                      className="bg-emerald-950/45 border-4 border-emerald-500 rounded-[32px] p-6 text-center flex flex-col justify-center gap-1.5 relative overflow-hidden"
+                      className="bg-emerald-950/45 border-4 border-emerald-500 rounded-[32px] p-6 text-center flex flex-col justify-center gap-2 relative overflow-hidden"
                     >
                       {/* Pulse beacon inside card */}
                       <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
 
-                      <span className="text-3xl font-black text-emerald-300 font-mono tracking-widest">
-                        #{order.id.slice(-4).toUpperCase()}
-                      </span>
+                      {/* Dish names */}
+                      <div className="space-y-1">
+                        {(order.items || []).map((item, idx) => (
+                          <p key={idx} className="text-lg font-black text-emerald-200 leading-tight">
+                            {item.name} {item.quantity > 1 && <span className="text-emerald-400">×{item.quantity}</span>}
+                          </p>
+                        ))}
+                        {(!order.items || order.items.length === 0) && (
+                          <p className="text-lg font-black text-emerald-300">Order #{order.id.slice(-4).toUpperCase()}</p>
+                        )}
+                      </div>
                       {order.tableNo ? (
                         <span className="text-xs font-black text-white uppercase tracking-wider bg-emerald-600 px-3 py-1 rounded-full inline-block mx-auto shadow-sm">
                           Table {order.tableNo}
@@ -394,7 +408,7 @@ export default function QueueTvView({ restaurantSlug, onBack }) {
                 <span>•</span>
                 <span>📱 Scan the QR code on the right to browse our full digital menu and place a secure online order from your phone!</span>
                 <span>•</span>
-                <span>❤️ Enjoy your delicious dining experience! Powered by RestroSaaS Premium Systems.</span>
+                <span>❤️ Enjoy your delicious dining experience! Powered by Orderin Premium Systems.</span>
               </div>
             </div>
           </div>

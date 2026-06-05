@@ -1,7 +1,7 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('restro_token');
+  const token = localStorage.getItem('Orderin_token');
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),

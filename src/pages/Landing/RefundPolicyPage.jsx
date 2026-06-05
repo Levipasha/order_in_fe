@@ -146,7 +146,7 @@ export default function RefundPolicyPage({ setCurrentView }) {
             <li>Brief description of the issue (with images if applicable)</li>
           </ul>
           <p className="text-xs text-slate-800 pt-1 font-semibold flex items-center gap-1">
-            <Mail className="w-4 h-4 text-slate-500" /> Email: <a href="mailto:support@skywebit.com" className="text-red-500 hover:underline">support@skywebit.com</a>
+            <Mail className="w-4 h-4 text-slate-500" /> Email: <a href="mailto:support@orderin.in" className="text-red-500 hover:underline">support@orderin.in</a>
           </p>
         </section>
       </motion.div>

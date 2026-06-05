@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage({ setCurrentView }) {
             7. User Rights & Data Deletion
           </h2>
           <p>
-            You have the right to request access to the personal data we hold about you, request corrections to out-of-date records, or request complete deletion of your account. To raise a data removal request, please email our Hyderabad office at <a href="mailto:support@skywebit.com" className="text-red-500 font-bold hover:underline">support@skywebit.com</a>.
+            You have the right to request access to the personal data we hold about you, request corrections to out-of-date records, or request complete deletion of your account. To raise a data removal request, please email our Hyderabad office at <a href="mailto:support@orderin.in" className="text-red-500 font-bold hover:underline">support@orderin.in</a>.
           </p>
         </section>
 
@@ -155,8 +155,8 @@ export default function PrivacyPolicyPage({ setCurrentView }) {
           </p>
           <div className="space-y-1.5 text-slate-800">
             <p className="font-bold">SkyWeb IT Solutions Private Limited</p>
-            <p className="flex items-center gap-1.5 text-xs"><MapPin className="w-3.5 h-3.5 text-slate-500" /> Madhapur, Hyderabad, Telangana, 500081, India</p>
-            <p className="flex items-center gap-1.5 text-xs"><Mail className="w-3.5 h-3.5 text-slate-500" /> support@skywebit.com</p>
+            <p className="flex items-center gap-1.5 text-xs"><MapPin className="w-3.5 h-3.5 text-slate-500" /> Geetha Nagar, Malkajgiri, Hyderabad, Telangana, 500047, India</p>
+            <p className="flex items-center gap-1.5 text-xs"><Mail className="w-3.5 h-3.5 text-slate-500" /> support@orderin.in</p>
           </div>
         </section>
       </motion.div>

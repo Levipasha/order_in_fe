@@ -4,6 +4,7 @@ import {
   Building2, Mail, Phone, MapPin, Send, 
   MessageSquare, Globe, CheckCircle2, AlertCircle
 } from 'lucide-react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 const TwitterIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -88,9 +89,12 @@ export default function ContactPage({ setCurrentView }) {
     >
       {/* Page Title */}
       <motion.div variants={itemVariants} className="text-center space-y-4 py-4">
-        <div className="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-600 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase">
-          <MessageSquare className="w-4 h-4 text-red-500" />
-          Get In Touch
+        <div className="w-48 h-48 mx-auto flex items-center justify-center">
+          <DotLottieReact
+            src="https://lottie.host/c9d12f74-aabf-4c68-b0b2-5c0d28fc05c2/2dI68dVB1E.lottie"
+            loop
+            autoplay
+          />
         </div>
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
           We'd Love to <span className="text-gradient">Hear From You</span>
@@ -128,8 +132,8 @@ export default function ContactPage({ setCurrentView }) {
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email Address</h3>
-                  <a href="mailto:support@skywebit.com" className="text-sm font-semibold text-slate-800 hover:text-red-500 transition">
-                    support@skywebit.com
+                  <a href="mailto:support@orderin.in" className="text-sm font-semibold text-slate-800 hover:text-red-500 transition block">
+                    support@orderin.in
                   </a>
                   <p className="text-[10px] text-slate-400">Response within 24 business hours</p>
                 </div>
@@ -141,11 +145,15 @@ export default function ContactPage({ setCurrentView }) {
                   <Phone className="w-5 h-5 text-red-500" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Phone Helpline</h3>
-                  <a href="tel:+914049889988" className="text-sm font-semibold text-slate-800 hover:text-red-500 transition">
-                    +91 40 4988 9988
-                  </a>
-                  <p className="text-[10px] text-slate-400">Mon - Sat, 9:00 AM to 6:00 PM IST</p>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Phone Helplines</h3>
+                  <div className="flex flex-col gap-1 mt-0.5">
+                    {["7369566279", "9912937061", "9014798713", "7396514989", "8121422761"].map((num) => (
+                      <a key={num} href={`tel:+91${num}`} className="text-sm font-semibold text-slate-800 hover:text-red-500 transition block">
+                        +91 {num.substring(0, 5)} {num.substring(5)}
+                      </a>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Mon - Sat, 9:00 AM to 6:00 PM IST</p>
                 </div>
               </div>
 
@@ -157,7 +165,7 @@ export default function ContactPage({ setCurrentView }) {
                 <div>
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Office Location</h3>
                   <p className="text-sm font-semibold text-slate-800 leading-relaxed">
-                    SkyWeb IT Solutions, 4th Floor, Tech Hub Towers, Madhapur, Hyderabad, Telangana, 500081, India.
+                    SkyWeb IT Solutions, Geetha Nagar, Malkajgiri, Hyderabad, Telangana, 500047, India.
                   </p>
                 </div>
               </div>
@@ -321,28 +329,39 @@ export default function ContactPage({ setCurrentView }) {
         </div>
       </motion.div>
 
-      {/* Google Maps Section Placeholder */}
+      {/* Google Maps Section */}
       <motion.div variants={itemVariants} className="space-y-4">
         <h2 className="text-2xl font-bold text-slate-900 text-center">Visit Our Head Office</h2>
-        <div className="bg-slate-200 h-[300px] w-full rounded-3xl overflow-hidden border border-slate-200 relative shadow-sm">
-          {/* Mock Google Map Visual */}
-          <div className="absolute inset-0 bg-slate-100 flex flex-col items-center justify-center p-6 text-center space-y-4">
-            <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center">
-              <MapPin className="w-8 h-8 text-red-500 animate-bounce" />
+        <div className="bg-slate-200 h-[400px] w-full rounded-3xl overflow-hidden border border-slate-200 relative shadow-sm group">
+          <iframe
+            src="https://maps.google.com/maps?q=SkyWeb%20IT%20Solutions%20Private%20Limited,%20Geetha%20Nagar,%20Malkajgiri,%20Hyderabad,%20Telangana,%20500047&t=&z=16&ie=UTF8&iwloc=&output=embed"
+            className="w-full h-full border-0 absolute inset-0 filter grayscale opacity-90 hover:grayscale-0 hover:opacity-100 transition-all duration-500"
+            allowFullScreen=""
+            loading="lazy"
+            title="SkyWeb IT Solutions Office Map"
+          ></iframe>
+          
+          {/* Floating Address Card on top of Map */}
+          <div className="absolute bottom-4 left-4 right-4 md:right-auto bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-100 max-w-sm flex items-start gap-3 transition-transform duration-300 group-hover:translate-y-[-4px]">
+            <div className="bg-red-50 p-2.5 rounded-xl text-red-500 shrink-0">
+              <MapPin className="w-5 h-5 text-red-500" />
             </div>
-            <div>
-              <h3 className="font-bold text-slate-800">SkyWeb IT Solutions Private Limited</h3>
-              <p className="text-xs text-slate-500 max-w-sm mt-1">Madhapur, near HITEC City, Hyderabad, Telangana, 500081</p>
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide">SkyWeb IT Solutions</h4>
+              <p className="text-xs text-slate-500 leading-normal">
+                Geetha Nagar, Malkajgiri, Hyderabad, Telangana, 500047
+              </p>
+              <div className="pt-1.5 flex gap-2">
+                <a 
+                  href="https://maps.google.com/?q=SkyWeb+IT+Solutions+Private+Limited,+Geetha+Nagar,+Malkajgiri,+Hyderabad,+Telangana,+500047" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition"
+                >
+                  Directions
+                </a>
+              </div>
             </div>
-            {/* Direct Link to Google Maps */}
-            <a 
-              href="https://maps.google.com/?q=Madhapur,Hyderabad,Telangana,India" 
-              target="_blank" 
-              rel="noreferrer"
-              className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold px-4 py-2 rounded-xl shadow transition"
-            >
-              Open in Google Maps
-            </a>
           </div>
         </div>
       </motion.div>
