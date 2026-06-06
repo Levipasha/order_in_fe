@@ -352,6 +352,7 @@ export default function App() {
 
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
   const [orderFlow, setOrderFlow] = useState(null);
   
   // Track whether this is an admin preview or a direct QR scan customer session.
@@ -574,8 +575,8 @@ export default function App() {
   // ── Translation helper ────────────────────────────────────────────────
   const t = (key) => {
     const translations = {
-      English: { searchFood: 'Search delicious dishes...', addToCart: 'Add to Cart', checkout: 'Secure Checkout', veg: 'Veg', nonVeg: 'Non-Veg', vegan: 'Vegan', spicy: 'Spicy', bestseller: 'Bestseller', special: "Today's Special", items: 'items', placeOrder: 'Place Order via Razorpay', liveTracking: 'Live Order Tracking', explore: 'Explore Restaurants', scanTable: 'Table Dine-in Menu', gst: 'GST (5%)', delivery: 'Delivery Charge', subtotal: 'Subtotal', total: 'Grand Total' },
-      Hindi: { searchFood: 'स्वादिष्ट व्यंजन खोजें...', addToCart: 'कार्ट में जोड़ें', checkout: 'सुरक्षित चेकआउट', veg: 'शाकाहारी', nonVeg: 'मांसाहारी', vegan: 'वेगन', spicy: 'तीखा', bestseller: 'सबसे लोकप्रिय', special: 'आज की विशेषता', items: 'आइटम', placeOrder: 'ऑर्डर सबमिट करें', liveTracking: 'लाइव ऑर्डर ट्रैकिंग', explore: 'रेस्तरां देखें', scanTable: 'टेबल डाइन-इन मेनू', gst: 'जीएसटी (5%)', delivery: 'वितरण शुल्क', subtotal: 'उपयोग', total: 'कुल योग' },
+      English: { searchFood: 'Search delicious dishes...', addToCart: 'Add to Cart', checkout: 'Secure Checkout', veg: 'Veg', nonVeg: 'Non-Veg', vegan: 'Vegan', spicy: 'Spicy', bestseller: 'Bestseller', special: "Today's Special", items: 'items', placeOrder: 'Place Order via Razorpay', liveTracking: 'Live Order Tracking', explore: 'Explore Restaurants', scanTable: 'Table Dine-in Menu', gst: 'GST', delivery: 'Delivery Charge', subtotal: 'Subtotal', total: 'Grand Total' },
+      Hindi: { searchFood: 'स्वादिष्ट व्यंजन खोजें...', addToCart: 'कार्ट में जोड़ें', checkout: 'सुरक्षित चेकआउट', veg: 'शाकाहारी', nonVeg: 'मांसाहारी', vegan: 'वेगन', spicy: 'तीखा', bestseller: 'सबसे लोकप्रिय', special: 'आज की विशेषता', items: 'आइटम', placeOrder: 'ऑर्डर सबमिट करें', liveTracking: 'लाइव ऑर्डर ट्रैकिंग', explore: 'रेस्तरां देखें', scanTable: 'टेबल डाइन-इन मेनू', gst: 'जीएसटी', delivery: 'वितरण शुल्क', subtotal: 'उपयोग', total: 'कुल योग' },
     };
     return translations[language]?.[key] || key;
   };
@@ -701,7 +702,7 @@ export default function App() {
               {currentUser ? (
                 <div className="flex items-center gap-3">
                   {/* Role badge with Dropdown */}
-                  <div className="relative">
+                  <div className="relative hidden md:block">
                     <button
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                       className={`flex items-center justify-center transition-all duration-300 hover:scale-[1.05] cursor-pointer ${
@@ -844,15 +845,13 @@ export default function App() {
               )}
 
               {/* Mobile hamburger menu */}
-              {(!currentUser || currentUser.role === 'customer') && (
-                <button
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 md:hidden transition cursor-pointer"
-                  aria-label="Toggle mobile menu"
-                >
-                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                </button>
-              )}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 md:hidden transition cursor-pointer"
+                aria-label="Toggle mobile menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
             </div>
           </div>
 
@@ -865,6 +864,105 @@ export default function App() {
                 exit={{ opacity: 0, height: 0 }}
                 className="md:hidden border-t border-slate-100 mt-3 pt-3 pb-2 flex flex-col gap-2 overflow-hidden"
               >
+                {/* Mobile User Profile Dropdown Section */}
+                {currentUser && (
+                  <div className="border-b border-slate-100 pb-3 mb-2">
+                    <button
+                      onClick={() => setMobileProfileOpen(!mobileProfileOpen)}
+                      className="w-full flex items-center justify-between p-3 bg-slate-50 border border-slate-200/60 rounded-xl hover:bg-slate-100 transition duration-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        {currentUser.role === 'customer' && currentUser.photoURL ? (
+                          <div className="w-8 h-8 rounded-full border border-emerald-400 p-[1px] bg-white flex items-center justify-center">
+                            <img src={currentUser.photoURL} className="w-full h-full rounded-full object-cover" alt="" />
+                          </div>
+                        ) : currentUser.role === 'super_admin' ? (
+                          <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center border border-purple-200">
+                            <Crown className="w-4 h-4 text-purple-500" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center border border-red-200">
+                            <LayoutDashboard className="w-4 h-4 text-red-500" />
+                          </div>
+                        )}
+                        <div className="text-left">
+                          <span className="text-xs font-black text-slate-800 block truncate max-w-[150px]">{currentUser.name}</span>
+                          <span className="text-[10px] text-slate-400 block truncate max-w-[150px]">{currentUser.email}</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${mobileProfileOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {mobileProfileOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2 pl-2 space-y-1 overflow-hidden"
+                        >
+                          {currentUser.role === 'customer' ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setCurrentView('customer_orders');
+                                  setMobileMenuOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                              >
+                                <ClipboardList className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                <span>History Orders</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setCurrentView('order');
+                                  setMobileMenuOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                              >
+                                <Navigation className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                <span>Route Pre-Orders</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setCurrentView('landing');
+                                  setMobileMenuOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                              >
+                                <Compass className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                                <span>Explore Food</span>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                  setCurrentView(currentUser.role === 'super_admin' ? 'super_admin' : 'restaurant_admin');
+                                  setMobileMenuOpen(false);
+                              }}
+                              className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-bold transition flex items-center gap-2 group cursor-pointer"
+                            >
+                              <LayoutDashboard className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
+                              <span>Dashboard</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                                handleLogout();
+                                setMobileMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-red-50 text-red-500 rounded-xl text-xs font-bold transition flex items-center gap-2 border-t border-slate-100 mt-1 group cursor-pointer"
+                          >
+                            <LogOut className="w-3.5 h-3.5 text-red-400 group-hover:text-red-500 transition-colors" />
+                            <span>Logout Account</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
                 {!currentUser ? (
                   <>
                     {[

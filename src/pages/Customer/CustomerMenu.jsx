@@ -251,7 +251,8 @@ export default function CustomerMenu({
   }, [cart]);
 
   const cartGst = useMemo(() => {
-    return Math.round((cartSubtotal * (restaurant.settings.gstPercentage / 100)) * 100) / 100;
+    const gstPercent = typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5;
+    return Math.round((cartSubtotal * (gstPercent / 100)) * 100) / 100;
   }, [cartSubtotal, restaurant]);
 
   // Set delivery fee strictly to 0 as customer pays only what is shown (no delivery charges)
@@ -962,7 +963,7 @@ export default function CustomerMenu({
                   <span className="font-bold text-slate-900">₹{cartSubtotal}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{t('gst')}</span>
+                  <span>{t('gst')} ({typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5}%)</span>
                   <span className="font-bold text-slate-900">₹{cartGst}</span>
                 </div>
 

@@ -493,8 +493,9 @@ export default function OrderPage({
   }, [cart]);
 
   const gstAmount = useMemo(() => {
-    return Math.round((cartSubtotal * 0.05) * 100) / 100;
-  }, [cartSubtotal]);
+    const gstPercent = typeof selectedRestaurant?.settings?.gstPercentage === 'number' ? selectedRestaurant.settings.gstPercentage : 5;
+    return Math.round((cartSubtotal * (gstPercent / 100)) * 100) / 100;
+  }, [cartSubtotal, selectedRestaurant]);
 
   const cartTotal = useMemo(() => {
     return cartSubtotal + gstAmount;
@@ -1266,7 +1267,7 @@ export default function OrderPage({
                               <span>₹{cartSubtotal}</span>
                             </div>
                             <div className="flex justify-between text-slate-400">
-                              <span>GST (5%)</span>
+                              <span>GST ({typeof selectedRestaurant?.settings?.gstPercentage === 'number' ? selectedRestaurant.settings.gstPercentage : 5}%)</span>
                               <span>₹{gstAmount}</span>
                             </div>
                             <div className="flex justify-between font-extrabold text-slate-800 text-sm pt-1 border-t border-dashed border-slate-200">

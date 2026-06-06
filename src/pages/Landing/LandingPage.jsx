@@ -353,7 +353,7 @@ export default function LandingPage({
 
   const cartGst = useMemo(() => {
     if (!currentCartRestaurant) return 0;
-    const gstPercent = currentCartRestaurant.settings?.gstPercentage || 5;
+    const gstPercent = typeof currentCartRestaurant.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage : 5;
     return Math.round((cartSubtotal * (gstPercent / 100)) * 100) / 100;
   }, [cartSubtotal, currentCartRestaurant]);
 
@@ -1387,7 +1387,7 @@ export default function LandingPage({
                           <span className="text-slate-800 font-extrabold">₹{cartSubtotal}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>GST ({currentCartRestaurant?.settings?.gstPercentage || 5}%)</span>
+                          <span>GST ({typeof currentCartRestaurant?.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage : 5}%)</span>
                           <span className="text-slate-800 font-extrabold">₹{cartGst}</span>
                         </div>
                         <div className="border-t border-slate-100 pt-2 flex justify-between text-sm font-black text-slate-800">

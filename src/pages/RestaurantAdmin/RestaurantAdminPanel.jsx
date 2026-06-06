@@ -446,9 +446,9 @@ export default function RestaurantAdminPanel({
   });
 
   const [settings, setSettings] = useState({
-    gstPercentage: restaurant?.settings?.gstPercentage || 5,
-    deliveryCharge: restaurant?.settings?.deliveryCharge || 30,
-    minimumOrderAmount: restaurant?.settings?.minimumOrderAmount || 99
+    gstPercentage: typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5,
+    deliveryCharge: typeof restaurant?.settings?.deliveryCharge === 'number' ? restaurant.settings.deliveryCharge : 30,
+    minimumOrderAmount: typeof restaurant?.settings?.minimumOrderAmount === 'number' ? restaurant.settings.minimumOrderAmount : 99
   });
 
   const fetchKycAndSettlementData = async () => {
@@ -583,9 +583,9 @@ export default function RestaurantAdminPanel({
         close: restaurant.timings?.close || '22:00'
       });
       setSettings({
-        gstPercentage: restaurant.settings?.gstPercentage || 5,
-        deliveryCharge: restaurant.settings?.deliveryCharge || 30,
-        minimumOrderAmount: restaurant.settings?.minimumOrderAmount || 99
+        gstPercentage: typeof restaurant.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5,
+        deliveryCharge: typeof restaurant.settings?.deliveryCharge === 'number' ? restaurant.settings.deliveryCharge : 30,
+        minimumOrderAmount: typeof restaurant.settings?.minimumOrderAmount === 'number' ? restaurant.settings.minimumOrderAmount : 99
       });
       setOwnerName(restaurant.ownerName || '');
       setBusinessEmail(restaurant.email || restaurant.contact?.email || '');
@@ -2272,21 +2272,23 @@ export default function RestaurantAdminPanel({
                           <table className="w-full text-left text-[11px]">
                             <thead>
                               <tr className="bg-slate-900 border-b border-white/5 text-slate-400 font-bold uppercase">
-                                <th className="p-3">Settlement ID</th>
+                                <th className="p-3">Reference/Settlement ID</th>
                                 <th className="p-3">Net Settled</th>
                                 <th className="p-3">Gateway Fees</th>
                                 <th className="p-3">Taxes</th>
                                 <th className="p-3">Processed Date</th>
+                                <th className="p-3">Method</th>
                               </tr>
                             </thead>
                             <tbody>
                               {payouts.map(pay => (
                                 <tr key={pay._id} className="border-b border-white/5 hover:bg-slate-900/40 text-slate-300">
-                                  <td className="p-3 font-mono text-[10px] text-slate-400">{pay.razorpaySettlementId}</td>
+                                  <td className="p-3 font-mono text-[10px] text-slate-400">{pay.referenceId || pay.razorpaySettlementId || 'N/A'}</td>
                                   <td className="p-3 font-bold text-emerald-400">₹{pay.amount}</td>
                                   <td className="p-3 text-slate-500">₹{pay.fees}</td>
                                   <td className="p-3 text-slate-500">₹{pay.tax}</td>
                                   <td className="p-3">{new Date(pay.settledAt).toLocaleDateString()}</td>
+                                  <td className="p-3 uppercase text-[9px] font-extrabold text-slate-500">{pay.payoutMethod || 'manual'}</td>
                                 </tr>
                               ))}
                             </tbody>
