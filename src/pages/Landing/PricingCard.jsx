@@ -81,12 +81,26 @@ const PricingCard = React.forwardRef(
 
         {/* Features */}
         <ul className="mt-6 space-y-3.5 text-xs flex-1 mb-8">
-          {features.map((feature, index) => (
-            <li key={index} className="flex items-start gap-3">
-              <CheckIcon className={cn("w-4 h-4 flex-shrink-0 mt-0.5", isPopular ? "text-white" : "text-slate-900")} />
-              <span className={isPopular ? 'text-slate-300' : 'text-slate-600'}>{feature}</span>
-            </li>
-          ))}
+          {features.map((feature, index) => {
+            const isHighlighted = feature.toLowerCase().includes('try 1 month') || feature.toLowerCase().includes('free trial');
+            return (
+              <li key={index} className="flex items-center gap-3">
+                <CheckIcon className={cn(
+                  "w-4 h-4 flex-shrink-0", 
+                  isPopular 
+                    ? (isHighlighted ? "text-[#ccff00]" : "text-white") 
+                    : (isHighlighted ? "text-red-500" : "text-slate-900")
+                )} />
+                <span className={cn(
+                  isPopular 
+                    ? (isHighlighted ? 'text-[#ccff00] font-extrabold' : 'text-slate-300') 
+                    : (isHighlighted ? 'text-red-600 font-extrabold' : 'text-slate-600')
+                )}>
+                  {feature}
+                </span>
+              </li>
+            );
+          })}
         </ul>
 
         {/* Button */}
@@ -94,12 +108,12 @@ const PricingCard = React.forwardRef(
           onClick={onSelect}
           disabled={isCurrentPlan}
           className={cn(
-            "w-full py-3 rounded-xl font-bold text-xs transition-all duration-300 mt-auto",
+            "w-full py-3 rounded-xl font-bold text-xs transition-all duration-300 mt-auto cursor-pointer",
             isCurrentPlan
               ? "bg-slate-200 text-slate-500 cursor-not-allowed"
               : isPopular
-              ? "bg-white hover:bg-slate-200 text-slate-900 shadow-md"
-              : "bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+              ? "bg-[#ccff00] hover:bg-[#bbf000] text-slate-950 font-black shadow-md shadow-[#ccff00]/10 hover:scale-[1.02]"
+              : "bg-slate-900 hover:bg-slate-800 text-white shadow-sm hover:scale-[1.02]"
           )}
         >
           {isCurrentPlan ? 'Current plan' : buttonText}

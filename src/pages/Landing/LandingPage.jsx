@@ -14,8 +14,22 @@ import Loader from '../Loader';
 import { SUBSCRIPTION_MONTHLY_PRICE_INR } from '../../config/subscription';
 
 const subscriptionPlans = [
-  { id: "free", name: "Free Trial", price: 0, period: "15 Days", features: ["1 Restaurant Profile", "Basic digital menu", "Table QR generator", "Up to 50 orders/mo"] },
-  { id: "basic", name: "Premium Pro", price: SUBSCRIPTION_MONTHLY_PRICE_INR, period: "Month", features: ["Advanced glassmorphic themes", "Realtime order dashboard", "Email payout alerts", "Instant payout", "Call Support", "Multiple tables QR"] }
+  {
+    id: "basic",
+    name: "Premium Pro",
+    price: SUBSCRIPTION_MONTHLY_PRICE_INR,
+    period: "Month",
+    features: [
+      "Try 1 Month Free Trial",
+      "After trial: ₹799/month",
+      "Advanced glassmorphic themes",
+      "Realtime order dashboard",
+      "Email payout alerts",
+      "Instant payout",
+      "Call Support",
+      "Multiple tables QR code"
+    ]
+  }
 ];
 
 const resolveImageUrl = (url) => {
@@ -172,10 +186,6 @@ export default function LandingPage({
               <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-red-500 transition-colors line-clamp-1">
                 {dish.name}
               </h4>
-              <div className="flex items-center gap-0.5 bg-amber-500/10 px-1.5 py-0.5 rounded-lg text-[9px] font-extrabold text-amber-500 shrink-0">
-                <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
-                <span>{dish.restaurant?.rating || '5.0'}</span>
-              </div>
             </div>
             {/* Restaurant Name */}
             <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600">
@@ -351,11 +361,21 @@ export default function LandingPage({
     return restaurants.find(r => r.id === rId) || cart[0]?.restaurant;
   }, [cart, restaurants]);
 
-  const cartGst = useMemo(() => {
+  const cartCgst = useMemo(() => {
     if (!currentCartRestaurant) return 0;
-    const gstPercent = typeof currentCartRestaurant.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage : 5;
-    return Math.round((cartSubtotal * (gstPercent / 100)) * 100) / 100;
+    const cgstPercent = typeof currentCartRestaurant.settings?.cgstPercentage === 'number' ? currentCartRestaurant.settings.cgstPercentage : (typeof currentCartRestaurant.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage / 2 : 2.5);
+    return Math.round((cartSubtotal * (cgstPercent / 100)) * 100) / 100;
   }, [cartSubtotal, currentCartRestaurant]);
+
+  const cartSgst = useMemo(() => {
+    if (!currentCartRestaurant) return 0;
+    const sgstPercent = typeof currentCartRestaurant.settings?.sgstPercentage === 'number' ? currentCartRestaurant.settings.sgstPercentage : (typeof currentCartRestaurant.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage / 2 : 2.5);
+    return Math.round((cartSubtotal * (sgstPercent / 100)) * 100) / 100;
+  }, [cartSubtotal, currentCartRestaurant]);
+
+  const cartGst = useMemo(() => {
+    return cartCgst + cartSgst;
+  }, [cartCgst, cartSgst]);
 
   const couponDiscount = useMemo(() => {
     if (!activeCoupon) return 0;
@@ -765,72 +785,8 @@ export default function LandingPage({
           </div>
 
           {/* Pre-order hub selection shortcuts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="flex justify-center max-w-md mx-auto w-full">
             
-            {/* Route order card */}
-            <motion.div
-              onClick={() => { setOrderFlow('route'); setCurrentView('order'); }}
-              className="w-full overflow-hidden rounded-[32px] bg-white border border-slate-200 shadow-md hover:shadow-xl text-slate-800 cursor-pointer relative group flex flex-col justify-between"
-              whileHover={{ y: -6, scale: 1.015 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            >
-              {/* Top Section */}
-              <div className="relative h-56 w-full overflow-hidden">
-                <img
-                  src="https://t4.ftcdn.net/jpg/02/59/09/45/360_F_259094531_10axarCzdfGRoknBIcds04CXKFB8LY2C.jpg"
-                  alt="Travel Route Orders"
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-                
-                <div className="absolute bottom-0 left-0 flex w-full items-end justify-between p-5">
-                  <div className="text-white text-left space-y-1">
-                    <span className="text-[9px] bg-white/20 backdrop-blur-md text-white px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
-                      Travel Stop
-                    </span>
-                    <h3 className="text-lg font-black tracking-tight flex items-center gap-2 mt-0.5">
-                      <Navigation className="w-5 h-5 text-cyan-400 shrink-0 fill-cyan-400/10" />
-                      <span>Travel Route Orders</span>
-                    </h3>
-                    <p className="text-xs text-white/90 font-medium line-clamp-1">
-                      Choose travel points, locate restaurants, and get hot meals.
-                    </p>
-                  </div>
-                  
-                  {/* Directions Proceed Button */}
-                  <div className="opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 shrink-0 pb-1">
-                    <span className="bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl shadow-md flex items-center gap-1.5">
-                      Pre-order
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Section */}
-              <div className="p-5 text-left flex flex-col justify-between flex-1">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-black text-slate-800 text-sm uppercase tracking-wide">Route Ordering</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Multi-Restaurant</p>
-                  </div>
-                  <img
-                    src="https://img.icons8.com/color/96/google-maps.png"
-                    alt="Route navigation map"
-                    className="h-9 w-16 object-contain"
-                  />
-                </div>
-                
-                <div className="my-4 h-px w-full bg-slate-100" />
-                
-                <div className="flex justify-between gap-4">
-                  <StatItem label="Distance" value="Any Highway" />
-                  <StatItem label="Elevation" value="Verified Outlets" />
-                  <StatItem label="Duration" value="On-the-go" />
-                </div>
-              </div>
-            </motion.div>
-
             {/* Schedule Order Card */}
             <motion.div
               onClick={() => { setOrderFlow('schedule'); setCurrentView('order'); }}
@@ -958,19 +914,20 @@ export default function LandingPage({
             <h2 className="text-3xl font-bold">Premium SaaS Plans</h2>
             <p className="text-slate-400 text-sm mt-1">Choose the ultimate package fitted for your dining operations</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto pt-6">
-            {subscriptionPlans.map((plan, idx) => (
+          <div className="flex justify-center max-w-md mx-auto pt-6 w-full">
+            {subscriptionPlans.map((plan) => (
               <PricingCard
                 key={plan.id}
-                variant={idx === 1 ? 'popular' : 'default'}
+                variant="popular"
                 planName={plan.name}
-                description={idx === 1 ? "Everything you need to grow" : "Perfect for getting started"}
+                description="Everything you need to grow"
                 price={plan.price}
                 billingCycle={plan.period}
                 features={plan.features}
-                buttonText={`Select ${plan.name}`}
-                icon={idx === 1 ? <Building2 className="w-6 h-6" /> : <Store className="w-6 h-6" />}
+                buttonText="Try 1 Month Free"
+                icon={<Building2 className="w-6 h-6" />}
                 onSelect={() => setCurrentView('login')}
+                className="w-full"
               />
             ))}
           </div>
@@ -1387,8 +1344,12 @@ export default function LandingPage({
                           <span className="text-slate-800 font-extrabold">₹{cartSubtotal}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>GST ({typeof currentCartRestaurant?.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage : 5}%)</span>
-                          <span className="text-slate-800 font-extrabold">₹{cartGst}</span>
+                          <span>CGST ({typeof currentCartRestaurant?.settings?.cgstPercentage === 'number' ? currentCartRestaurant.settings.cgstPercentage : (typeof currentCartRestaurant?.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage / 2 : 2.5)}%)</span>
+                          <span className="text-slate-800 font-extrabold">₹{cartCgst}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>SGST ({typeof currentCartRestaurant?.settings?.sgstPercentage === 'number' ? currentCartRestaurant.settings.sgstPercentage : (typeof currentCartRestaurant?.settings?.gstPercentage === 'number' ? currentCartRestaurant.settings.gstPercentage / 2 : 2.5)}%)</span>
+                          <span className="text-slate-800 font-extrabold">₹{cartSgst}</span>
                         </div>
                         <div className="border-t border-slate-100 pt-2 flex justify-between text-sm font-black text-slate-800">
                           <span>Grand Total</span>

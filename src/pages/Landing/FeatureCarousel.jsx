@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QrCode, Smartphone, ChefHat, Calendar, Navigation } from "lucide-react";
 import slideImage from "./Untitled design (5).png";
-import slideImageTwo from "./Untitled design (4).png";
+import slideImageTwo from "./chef_direct.jpeg";
 import slideImageThree from "./Gemini_Generated_Image_2evpxz2evpxz2evp.png";
 import slideImageFour from "./Gemini_Generated_Image_it848kit848kit84.png";
-import slideImageFive from "./Gemini_Generated_Image_w7ket2w7ket2w7ke.png";
+import slideImageFive from "./Untitled design (7).png";
 
 const FEATURES = [
   {

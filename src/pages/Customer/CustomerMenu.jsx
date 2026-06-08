@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, ShoppingBag, Trash2, QrCode, Star, X, Percent, ArrowRight, Heart, Activity, Utensils,
   Leaf, Flame, Sprout, BookOpen, ArrowLeft, Plus, ChevronRight, SlidersHorizontal, Share2, Clock, Bike, Tag, Compass, User,
-  Wifi, Battery
+  Wifi, Battery, ClipboardList, LogOut, ShieldAlert, Award
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
 import { socket, joinRoom } from '../../utils/socket';
+import { auth } from '../../firebase';
+import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
 
 const resolveImageUrl = (url) => {
   if (!url) return '';
@@ -35,16 +37,141 @@ export default function CustomerMenu({
   const [gatewayFallbackNote, setGatewayFallbackNote] = useState(null);
 
   // Diner profile & order selection states
-  const [currentUser] = useState(() => {
-    const saved = localStorage.getItem('Orderin_current_user');
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('Orderin_diner_user');
     return saved ? JSON.parse(saved) : null;
   });
   const [localOrderType, setLocalOrderType] = useState('table');
   const [enteredTableNo, setEnteredTableNo] = useState('');
   const [localPickupDate, setLocalPickupDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [localPickupTime, setLocalPickupTime] = useState('19:30');
-  const [localCustomerPhone, setLocalCustomerPhone] = useState(() => currentUser?.phone || localStorage.getItem('Orderin_customer_phone') || '');
+  const [localCustomerPhone, setLocalCustomerPhone] = useState(() => currentUser?.phone || localStorage.getItem('Orderin_diner_phone') || '');
   const [localCustomerName, setLocalCustomerName] = useState(() => currentUser?.name || 'Guest Diner');
+
+  // Past orders states & phone update states
+  const [pastOrders, setPastOrders] = useState([]);
+  const [loadingPastOrders, setLoadingPastOrders] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  // Auto-sync customer info with checkout inputs
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.phone) {
+        setLocalCustomerPhone(currentUser.phone);
+      }
+      if (currentUser.name) {
+        setLocalCustomerName(currentUser.name);
+      }
+    }
+  }, [currentUser]);
+
+  const fetchPastOrders = async (phone) => {
+    if (!phone) return;
+    setLoadingPastOrders(true);
+    try {
+      const res = await apiRequest(`/orders/customer/${phone}`);
+      if (res.success && Array.isArray(res.orders)) {
+        setPastOrders(res.orders);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch past orders:", err.message);
+    } finally {
+      setLoadingPastOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.phone) {
+      fetchPastOrders(currentUser.phone);
+    }
+  }, [currentUser?.phone]);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const googleUser = result.user;
+      
+      const savedPhone = localStorage.getItem(`Orderin_phone_${googleUser.uid}`) || '';
+      
+      const res = await apiRequest('/auth/google-diner', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: googleUser.displayName || 'Guest Diner',
+          email: googleUser.email,
+          phone: savedPhone,
+          photoURL: googleUser.photoURL
+        })
+      });
+
+      if (res.success && res.user) {
+        const loggedInUser = {
+          id: res.user.id || googleUser.uid,
+          email: res.user.email || googleUser.email,
+          role: 'customer',
+          name: res.user.name || googleUser.displayName || 'Guest Diner',
+          photoURL: googleUser.photoURL,
+          phone: res.user.phone || savedPhone
+        };
+
+        localStorage.setItem('Orderin_diner_user', JSON.stringify(loggedInUser));
+        if (loggedInUser.phone) {
+          localStorage.setItem('Orderin_diner_phone', loggedInUser.phone);
+        }
+        setCurrentUser(loggedInUser);
+      }
+    } catch (err) {
+      console.error("Google Login failed:", err);
+      alert("Google Sign-In failed: " + err.message);
+    }
+  };
+
+  const handleSavePhone = async (e) => {
+    e.preventDefault();
+    if (!phoneInput) return;
+    setSavingPhone(true);
+    try {
+      const res = await apiRequest('/auth/google-diner', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: phoneInput,
+          photoURL: currentUser.photoURL
+        })
+      });
+
+      if (res.success && res.user) {
+        const updatedUser = {
+          ...currentUser,
+          phone: res.user.phone
+        };
+        localStorage.setItem(`Orderin_phone_${currentUser.id}`, res.user.phone);
+        localStorage.setItem('Orderin_diner_phone', res.user.phone);
+        localStorage.setItem('Orderin_diner_user', JSON.stringify(updatedUser));
+        setCurrentUser(updatedUser);
+      }
+    } catch (err) {
+      console.error("Failed to save phone number:", err);
+      alert("Failed to save phone number: " + err.message);
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fbSignOut(auth);
+      localStorage.removeItem('Orderin_diner_user');
+      localStorage.removeItem('Orderin_diner_phone');
+      setCurrentUser(null);
+      setPastOrders([]);
+      setCheckoutStep(null);
+    } catch (err) {
+      console.warn("Sign out failed:", err.message);
+    }
+  };
 
   const filteredCategories = useMemo(() => {
     return categories.filter(c => c.restaurantId === restaurant.id);
@@ -250,10 +377,19 @@ export default function CustomerMenu({
     }, 0);
   }, [cart]);
 
-  const cartGst = useMemo(() => {
-    const gstPercent = typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5;
-    return Math.round((cartSubtotal * (gstPercent / 100)) * 100) / 100;
+  const cartCgst = useMemo(() => {
+    const cgstPercent = typeof restaurant?.settings?.cgstPercentage === 'number' ? restaurant.settings.cgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5);
+    return Math.round((cartSubtotal * (cgstPercent / 100)) * 100) / 100;
   }, [cartSubtotal, restaurant]);
+
+  const cartSgst = useMemo(() => {
+    const sgstPercent = typeof restaurant?.settings?.sgstPercentage === 'number' ? restaurant.settings.sgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5);
+    return Math.round((cartSubtotal * (sgstPercent / 100)) * 100) / 100;
+  }, [cartSubtotal, restaurant]);
+
+  const cartGst = useMemo(() => {
+    return cartCgst + cartSgst;
+  }, [cartCgst, cartSgst]);
 
   // Set delivery fee strictly to 0 as customer pays only what is shown (no delivery charges)
   const deliveryFee = 0;
@@ -507,6 +643,56 @@ export default function CustomerMenu({
     return orders.find(o => o.id === liveOrderTrackingId);
   }, [orders, liveOrderTrackingId]);
 
+  if (restaurant && restaurant.isApproved === false) {
+    const primaryColor = restaurant.theme?.primaryColor || '#ff385c';
+    return (
+      <div className="wrap customer-theme md:my-6 md:shadow-2xl min-h-[85vh] bg-slate-50 text-slate-800 flex flex-col items-center justify-center p-8 text-center space-y-6 select-none font-sans">
+        {restaurant.logo ? (
+          <img src={resolveImageUrl(restaurant.logo)} className="w-24 h-24 rounded-3xl object-contain bg-white p-2 border border-slate-200 shadow-sm mx-auto animate-pulse" alt="logo" />
+        ) : (
+          <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-4xl font-black text-white mx-auto animate-pulse" style={{ backgroundColor: primaryColor }}>
+            {restaurant.name?.charAt(0) || '🏪'}
+          </div>
+        )}
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">{restaurant.name}</h2>
+        <div className="h-0.5 w-16 mx-auto" style={{ backgroundColor: primaryColor }}></div>
+        <p className="text-sm font-bold text-slate-600 max-w-sm leading-relaxed">
+          Contact Orderin support to know your rejection
+        </p>
+        {onBack && (
+          <button onClick={onBack} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer">
+            Go Back
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (restaurant && (restaurant.subscriptionActive === false || restaurant.isActive === false)) {
+    const primaryColor = restaurant.theme?.primaryColor || '#ff385c';
+    return (
+      <div className="wrap customer-theme md:my-6 md:shadow-2xl min-h-[85vh] bg-slate-50 text-slate-800 flex flex-col items-center justify-center p-8 text-center space-y-6 select-none font-sans">
+        {restaurant.logo ? (
+          <img src={resolveImageUrl(restaurant.logo)} className="w-24 h-24 rounded-3xl object-contain bg-white p-2 border border-slate-200 shadow-sm mx-auto" alt="logo" />
+        ) : (
+          <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-4xl font-black text-white mx-auto" style={{ backgroundColor: primaryColor }}>
+            {restaurant.name?.charAt(0) || '🏪'}
+          </div>
+        )}
+        <h2 className="text-2xl font-black tracking-tight text-slate-900">{restaurant.name}</h2>
+        <div className="h-0.5 w-16 mx-auto" style={{ backgroundColor: primaryColor }}></div>
+        <p className="text-sm font-bold text-slate-600 max-w-sm leading-relaxed">
+          Please renew your profile for the further services in that
+        </p>
+        {onBack && (
+          <button onClick={onBack} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer">
+            Go Back
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="wrap customer-theme md:my-6 md:shadow-2xl">
       {/* Hero Header */}
@@ -532,7 +718,6 @@ export default function CustomerMenu({
             </button>
             <div className="hbtn-row">
               <button className="hbtn" aria-label="Save"><Heart className="w-4 h-4 text-white" /></button>
-              <button className="hbtn" aria-label="Share"><Share2 className="w-4 h-4 text-white" /></button>
             </div>
           </div>
           <div className="hero-content text-left flex gap-4 items-end z-10 w-full">
@@ -554,25 +739,7 @@ export default function CustomerMenu({
         </div>
       )}
 
-      {/* Cart/Tracking Mode Header */}
-      {checkoutStep && (
-        <div className="bg-white/80 border-b border-slate-100 py-4 px-4 flex justify-between items-center backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setCheckoutStep(null)}
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 border border-slate-200/50 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition flex-shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <img src={resolveImageUrl(restaurant.logo)} className="w-10 h-10 rounded-xl object-contain bg-white p-1.5 border border-slate-100 shadow-md" alt={restaurant.name} />
-            <div className="text-left">
-              <h2 className="text-base font-extrabold text-slate-900 leading-tight">
-                {restaurant.name}
-              </h2>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Cart/Tracking Mode Header removed */}
 
       <div className="flex-1 flex flex-col justify-between pt-2 pb-24">
         {!checkoutStep ? (
@@ -684,10 +851,6 @@ export default function CustomerMenu({
                             <div>
                               <span className="hcard-price">₹{item.discountPrice || item.price}</span>
                               {item.discountPrice && <span className="hcard-strike">₹{item.price}</span>}
-                            </div>
-                            <div className="stars">
-                              <Star className="w-2.5 h-2.5 fill-[#c8a84b] text-[#c8a84b]" />
-                              <span className="star-n">{item.rating || '4.8'}</span>
                             </div>
                           </div>
                         </div>
@@ -963,8 +1126,12 @@ export default function CustomerMenu({
                   <span className="font-bold text-slate-900">₹{cartSubtotal}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{t('gst')} ({typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5}%)</span>
-                  <span className="font-bold text-slate-900">₹{cartGst}</span>
+                  <span>CGST ({typeof restaurant?.settings?.cgstPercentage === 'number' ? restaurant.settings.cgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5)}%)</span>
+                  <span className="font-bold text-slate-900">₹{cartCgst}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SGST ({typeof restaurant?.settings?.sgstPercentage === 'number' ? restaurant.settings.sgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5)}%)</span>
+                  <span className="font-bold text-slate-900">₹{cartSgst}</span>
                 </div>
 
                 {activeCoupon && (
@@ -1004,6 +1171,192 @@ export default function CustomerMenu({
                 Pay
               </button>
             </div>
+          </div>
+        ) : checkoutStep === 'profile' ? (
+          <div className="space-y-6 px-4 text-left">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCheckoutStep(null)} className="p-2 bg-slate-100 border border-slate-200/50 rounded-full hover:bg-slate-200 text-slate-700">
+                <X className="w-4 h-4" />
+              </button>
+              <h3 className="text-lg font-black text-slate-900">Your Dining Profile</h3>
+            </div>
+
+            {!currentUser ? (
+              // ── SIGN IN PROMPT ──
+              <div className="bg-white rounded-3xl border border-slate-100 p-6 space-y-6 shadow-sm shadow-slate-100">
+                <div className="text-center space-y-2">
+                  <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto text-red-500">
+                    <User className="w-8 h-8" />
+                  </div>
+                  <h4 className="text-lg font-extrabold text-slate-900">Unlock Diner Dashboard</h4>
+                  <p className="text-xs text-slate-500 font-medium">Sign in with Google to access premium ordering perks.</p>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-4">
+                  <div className="flex gap-3 items-start">
+                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg shrink-0 mt-0.5">
+                      <ClipboardList className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800">Easy Order History Tracking</h5>
+                      <p className="text-[10px] text-slate-400">Instantly look up what you ordered previously and re-order with ease.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 items-start">
+                    <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg shrink-0 mt-0.5">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800">Your Taste Analytics</h5>
+                      <p className="text-[10px] text-slate-400 font-medium">See your favorite dishes and keep track of how much you spent on restaurants.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 items-start">
+                    <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800">Save Time with Autocomplete</h5>
+                      <p className="text-[10px] text-slate-400 font-medium">Your number is automatically loaded at checkout for hassle-free Razorpay payments.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleGoogleLogin}
+                  className="w-full flex items-center justify-center gap-2.5 bg-[var(--ink)] text-white hover:opacity-95 font-extrabold py-3 rounded-2xl shadow-lg transition cursor-pointer"
+                >
+                  <img src="https://img.icons8.com/color/48/google-logo.png" className="w-5 h-5 bg-white rounded-full p-0.5" alt="" />
+                  <span>Sign In with Google</span>
+                </button>
+              </div>
+            ) : (
+              // ── SIGNED IN PROFILE VIEW ──
+              <div className="space-y-6">
+                {/* User card */}
+                <div className="bg-white rounded-3xl border border-slate-100 p-5 space-y-4 shadow-sm shadow-slate-100 flex items-center gap-4">
+                  {currentUser.photoURL ? (
+                    <img src={currentUser.photoURL} className="w-16 h-16 rounded-full object-cover border-2 border-emerald-400 bg-slate-100" alt="" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
+                      <User className="w-8 h-8" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-base font-black text-slate-900 truncate">{currentUser.name}</h4>
+                    <p className="text-xs text-slate-400 truncate">{currentUser.email}</p>
+                    <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                      Diner Member
+                    </span>
+                  </div>
+                </div>
+
+                {/* Phone Setup Card */}
+                {!currentUser.phone ? (
+                  <div className="bg-red-50/60 border border-red-100 rounded-3xl p-5 space-y-3">
+                    <div className="flex gap-2 text-red-700">
+                      <ShieldAlert className="w-5 h-5 shrink-0" />
+                      <div className="space-y-0.5">
+                        <h5 className="text-xs font-bold">Complete your setup</h5>
+                        <p className="text-[10px] text-slate-500">Save your phone number once to pre-fill Razorpay payments and fetch your past order list.</p>
+                      </div>
+                    </div>
+                    <form onSubmit={handleSavePhone} className="flex gap-2">
+                      <input
+                        type="tel"
+                        required
+                        placeholder="e.g. 9988776655"
+                        className="flex-1 bg-white border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500"
+                        value={phoneInput}
+                        onChange={e => setPhoneInput(e.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        disabled={savingPhone}
+                        className="bg-[var(--ink)] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow hover:opacity-90 transition disabled:opacity-60 cursor-pointer"
+                      >
+                        {savingPhone ? 'Saving...' : 'Save'}
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-3xl border border-slate-100 p-4 shadow-sm shadow-slate-100 flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">Linked Number (Razorpay prefill):</span>
+                    <strong className="text-slate-900 font-extrabold">{currentUser.phone}</strong>
+                  </div>
+                )}
+
+                {/* Diner Analytics benefits */}
+                {currentUser.phone && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-3xl border border-slate-100 p-4 text-center space-y-1 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Visits</span>
+                      <span className="text-2xl font-black text-[var(--ink)]">{pastOrders.length}</span>
+                    </div>
+                    <div className="bg-white rounded-3xl border border-slate-100 p-4 text-center space-y-1 shadow-sm">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Spent</span>
+                      <span className="text-2xl font-black text-emerald-600">
+                        ₹{pastOrders.reduce((sum, o) => sum + (o.paymentStatus === 'PAID' ? o.totalAmount : 0), 0)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Past orders list */}
+                <div className="space-y-3">
+                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Your Past Orders ({pastOrders.length})</span>
+                  
+                  {loadingPastOrders ? (
+                    <div className="py-8 text-center text-xs text-slate-400 animate-pulse">Loading orders...</div>
+                  ) : pastOrders.length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 text-center text-xs text-slate-400">
+                      No orders found under {currentUser.phone || 'this account'}. Link your phone number or make your first payment!
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                      {pastOrders.map(ord => (
+                        <div key={ord.id || ord._id} className="bg-white border border-slate-100 p-3.5 rounded-2xl flex justify-between items-center shadow-sm">
+                          <div className="space-y-1 text-left">
+                            <h5 className="text-[11px] font-extrabold text-slate-800 leading-tight">
+                              {ord.restaurant?.name || 'Partner Cafe'}
+                            </h5>
+                            <p className="text-[9px] text-slate-400 font-bold">
+                              {new Date(ord.createdAt).toLocaleDateString()} at {new Date(ord.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
+                            <div className="flex gap-1.5 flex-wrap pt-0.5">
+                              {(ord.items || []).map((i, idx) => (
+                                <span key={idx} className="bg-slate-100 text-slate-600 text-[8px] px-1.5 py-0.5 rounded font-medium">
+                                  {i.name} x{i.quantity}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <span className="text-xs font-black text-slate-900 block">₹{ord.totalAmount}</span>
+                            <span className={`inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full ${
+                              ord.paymentStatus === 'PAID' ? 'bg-green-50 text-green-600 border border-green-200/50' : 'bg-yellow-50 text-yellow-600 border border-yellow-200/50'
+                            }`}>
+                              {ord.paymentStatus === 'PAID' ? 'Paid' : 'Unpaid'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Logout button */}
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-500 font-extrabold text-xs rounded-2xl transition flex items-center justify-center gap-2 cursor-pointer border border-red-200/20"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout Diner Account</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6 px-4">
@@ -1122,6 +1475,10 @@ export default function CustomerMenu({
             <div className="cbadge" id="cbadge">{cart.reduce((sum, i) => sum + i.quantity, 0)}</div>
           </div>
           <span>Cart</span>
+        </div>
+        <div className={`ni ${checkoutStep === 'profile' ? 'on' : ''}`} onClick={() => setCheckoutStep('profile')}>
+          <User className="w-5 h-5" />
+          <span>Profile</span>
         </div>
         {liveOrderTrackingId && (
           <div className={`ni ${checkoutStep === 'tracking' ? 'on' : ''}`} onClick={() => setCheckoutStep('tracking')}>

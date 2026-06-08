@@ -24,10 +24,10 @@ import OrderPage from './pages/Landing/OrderPage';
 import CustomerOrders from './pages/Customer/CustomerOrders';
 import CircularRevealHeading from './pages/Landing/CircularRevealHeading';
 import slideImage1 from './pages/Landing/Untitled design (5).png';
-import slideImage2 from './pages/Landing/Untitled design (4).png';
+import slideImage2 from './pages/Landing/chef_direct.jpeg';
 import slideImage3 from './pages/Landing/Gemini_Generated_Image_2evpxz2evpxz2evp.png';
 import slideImage4 from './pages/Landing/schedule_order_image.jpg';
-import slideImage5 from './pages/Landing/map_route_image.jpg';
+import slideImage5 from './pages/Landing/map_route_image.png';
 
 // Mock data removed. App operates exclusively on MongoDB backend.
 
@@ -164,6 +164,7 @@ export default function App() {
             rating: dbRest.rating || 5.0,
             address: dbRest.address || '',
             bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            fssaiNumber: dbRest.fssaiNumber || '',
             cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
             subscriptionPlan: dbRest.subscriptionPlan,
             subscriptionExpiry: dbRest.subscriptionExpiry,
@@ -210,6 +211,7 @@ export default function App() {
             rating: dbRest.rating || 5.0,
             address: dbRest.address || '',
             bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            fssaiNumber: dbRest.fssaiNumber || '',
             cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
             subscriptionPlan: dbRest.subscriptionPlan,
             subscriptionExpiry: dbRest.subscriptionExpiry,
@@ -474,6 +476,7 @@ export default function App() {
             rating: dbRest.rating || 5.0,
             address: dbRest.address || '',
             bankDetails: dbRest.bankDetails || { bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '' },
+            fssaiNumber: dbRest.fssaiNumber || '',
             cashfree: dbRest.cashfree || { vendorStatus: 'NOT_CREATED', vendorId: null, commissionPercent: 10 },
             subscriptionPlan: dbRest.subscriptionPlan,
             subscriptionExpiry: dbRest.subscriptionExpiry,
@@ -1230,7 +1233,8 @@ export default function App() {
       </main>
 
       {/* ── FOOTER ─────────────────────────────────────────────────────── */}
-      {!isCustomerView && !currentUser && (
+      {/* Footer disabled globally across all views */}
+      {false && !isCustomerView && !currentUser && (
         <footer className="bg-slate-900 text-slate-300 border-t border-white/5 py-12 px-6 mt-12">
           <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand column */}

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../utils/api';
 import Loader from '../Loader';
-import routeMapImage from './map_route_image.jpg';
 import scheduleOrderImage from './schedule_order_image.jpg';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
@@ -228,7 +227,6 @@ export default function OrderPage({
             <img src="${rest.logo}" class="w-6 h-6 rounded-lg object-contain p-0.5 border border-slate-100 shrink-0" />
             <div class="min-w-0 flex-1">
               <h5 class="font-extrabold text-slate-800 text-[10px] truncate leading-tight">${rest.name}</h5>
-              <p class="text-[8px] text-amber-500 font-black">★ ${rest.rating || '4.8'}</p>
             </div>
           </div>
           ${restAddress ? `<p class="text-[7px] text-slate-400 leading-snug truncate flex items-center gap-0.5">📍 ${restAddress}</p>` : ''}
@@ -728,61 +726,9 @@ export default function OrderPage({
 
       {/* Main Choice Dashboard */}
       {!selectedFlow && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Card 1: Route Order */}
-          <div className="bg-white border border-slate-200/60 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between text-left group overflow-hidden">
-            <div className="relative h-48 w-full overflow-hidden bg-slate-100 shrink-0">
-              <img 
-                src={routeMapImage} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                alt="Route Order Map"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
-            </div>
-            
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-                    Route Order
-                  </h3>
-                  <p className="text-sm font-semibold text-slate-400">
-                    Order food while travelling and pick it up on your route without waiting.
-                  </p>
-                </div>
-                {/* Features List */}
-                <ul className="space-y-2.5 pt-2 text-xs font-bold text-slate-500">
-                  <li className="flex items-center gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-500" />
-                    <span>Choose start location & destination</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-500" />
-                    <span>Discover registered restaurants along your route</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-500" />
-                    <span>Check route distance & food preparation delays</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-500" />
-                    <span>Pre-order food & select instant pickup ETA</span>
-                  </li>
-                </ul>
-              </div>
-              
-              <button 
-                onClick={() => { setSelectedFlow('route'); setStep(1); }}
-                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow transition-colors cursor-pointer text-sm"
-              >
-                <span>Explore Route Orders</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
+        <div className="flex justify-center max-w-md mx-auto w-full">
           {/* Card 2: Schedule & Pick */}
-          <div className="bg-white border border-slate-200/60 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between text-left group overflow-hidden">
+          <div className="bg-white border border-slate-200/60 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between text-left group overflow-hidden w-full">
             <div className="relative h-48 w-full overflow-hidden bg-slate-100 shrink-0">
               <img 
                 src={scheduleOrderImage} 
@@ -996,9 +942,8 @@ export default function OrderPage({
                                   alt={rest.name} 
                                 />
                                 <div className="flex-1 min-w-0 text-left">
-                                  <h5 className="font-extrabold text-[11px] text-slate-800 truncate flex items-center gap-1.5 justify-between">
+                                  <h5 className="font-extrabold text-[11px] text-slate-800 truncate">
                                     <span>{rest.name}</span>
-                                    <span className="text-[9px] text-amber-500 font-extrabold shrink-0">★ {rest.rating || '4.8'}</span>
                                   </h5>
                                   <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-0.5">
                                     <span>ETA: {rest.estimatedPickupTime}</span>
@@ -1151,12 +1096,8 @@ export default function OrderPage({
                         alt={rest.name} 
                       />
                       <div className="space-y-1.5 text-left flex-1 min-w-0">
-                        <h4 className="font-extrabold text-slate-900 truncate flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 truncate">
                           <span>{rest.name}</span>
-                          <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-0.5">
-                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                            {rest.rating || '5.0'}
-                          </span>
                         </h4>
                         <p className="text-[10px] text-slate-500 truncate">{rest.tagline || 'Exquisite Indian cuisine'}</p>
                         {(rest.address || rest.contact?.address) && (

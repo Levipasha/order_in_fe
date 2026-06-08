@@ -12,25 +12,24 @@ import { SUBSCRIPTION_MONTHLY_PRICE_INR } from '../../config/subscription';
 
 const PLANS = [
   {
-    id: 'free',
-    name: 'Free Trial',
-    price: 0,
-    period: '15 Days',
-    description: 'Perfect for getting started',
-    badge: null,
-    color: 'border-white/5 hover:border-white/20',
-    features: ['1 Restaurant Profile', 'Basic digital menu', 'Table QR generator', 'Up to 50 orders/mo'],
-  },
-  {
     id: 'basic',
     name: 'Premium Pro',
-    price: SUBSCRIPTION_MONTHLY_PRICE_INR,
+    price: 799,
     period: 'Month',
-    description: 'Everything you need to grow',
-    badge: 'Most Popular',
-    color: 'border-[#ff385c] hover:border-red-500',
-    features: ['Advanced glassmorphic themes', 'Realtime order dashboard', 'Email payout alerts', 'Instant payout', 'Call Support', 'Multiple tables QR'],
-  },
+    description: 'Try 1 Month Free, then ₹799/month',
+    badge: 'Limited Offer',
+    color: 'border-[#ff385c] hover:border-red-500 bg-gradient-to-b from-red-950/25 to-slate-900/95 shadow-lg shadow-red-950/5',
+    features: [
+      'Try 1 Month Free Trial',
+      'After trial: ₹799/month',
+      'Advanced glassmorphic themes',
+      'Realtime order dashboard',
+      'Email payout alerts',
+      'Instant payout',
+      'Call Support',
+      'Multiple tables QR code'
+    ],
+  }
 ];
 
 export default function AuthPage({ users, setUsers, restaurants, setRestaurants, setCategories, categories, setCurrentUser, setCurrentView }) {
@@ -50,7 +49,12 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
     phone: '',
     password: '',
     confirmPassword: '',
-    address: 'Madhapur',
+    address: '',
+    pinCode: '',
+    bankName: '',
+    accountHolderName: '',
+    accountNumber: '',
+    ifscCode: '',
   });
   const [selectedPlan, setSelectedPlan] = useState(null);
 
@@ -237,8 +241,8 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
   /* ─── PLAN SELECTION ─── */
   const handlePlanSelect = (plan) => {
     setSelectedPlan(plan);
-    if (plan.price === 0) {
-      // Free plan — skip payment
+    if (plan.price === 0 || plan.id === 'basic') {
+      // Free trial — skip payment initially
       finalizeRegistration(plan, null);
     } else {
       setMode('payment');
@@ -358,10 +362,17 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
               contact: {
                 phone: signupData.phone || '+91 9999988888',
                 email: signupData.email,
-                address: `${signupData.address}, Hyderabad, India`,
+                address: signupData.address,
                 socialLinks: { instagram: '', facebook: '', whatsapp: signupData.phone || '' },
               },
-              address: `${signupData.address}, Hyderabad, India`,
+              address: signupData.address,
+              pinCode: signupData.pinCode,
+              bankDetails: {
+                bankName: signupData.bankName,
+                accountHolderName: signupData.accountHolderName,
+                accountNumber: signupData.accountNumber,
+                ifscCode: signupData.ifscCode
+              },
               settings: { gstPercentage: 5, deliveryCharge: 0, minimumOrderAmount: 150 },
               subscriptionPlan: plan.id,
               subscriptionExpiry: plan.id === 'free'
@@ -391,7 +402,9 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
               rating: backendRest.rating || 5.0,
               subscriptionPlan: backendRest.subscriptionPlan,
               subscriptionExpiry: backendRest.subscriptionExpiry,
-              subscriptionActive: backendRest.subscriptionActive
+              subscriptionActive: backendRest.subscriptionActive,
+              pinCode: backendRest.pinCode,
+              bankDetails: backendRest.bankDetails
             };
 
             // 4. Create initial Main Menu Category on backend MongoDB
@@ -435,10 +448,17 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
           contact: {
             phone: signupData.phone || '+91 9999988888',
             email: signupData.email,
-            address: `${signupData.address}, Hyderabad, India`,
+            address: signupData.address,
             socialLinks: { instagram: '', facebook: '', whatsapp: signupData.phone || '' },
           },
-          address: `${signupData.address}, Hyderabad, India`,
+          address: signupData.address,
+          pinCode: signupData.pinCode,
+          bankDetails: {
+            bankName: signupData.bankName,
+            accountHolderName: signupData.accountHolderName,
+            accountNumber: signupData.accountNumber,
+            ifscCode: signupData.ifscCode
+          },
           settings: { gstPercentage: 5, deliveryCharge: 0, minimumOrderAmount: 150 },
           tables: [{ tableNo: 'T1', qrCodeUrl: '' }],
           isApproved: true,
@@ -725,34 +745,25 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
                     onChange={e => setSignupData({ ...signupData, restaurantName: e.target.value })} />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" /> Restaurant Location / Area
-                  </label>
-                  <select 
-                    required 
-                    className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-xs font-bold focus:outline-none focus:border-red-500 text-white cursor-pointer"
-                    value={signupData.address}
-                    onChange={e => setSignupData({ ...signupData, address: e.target.value })}
-                  >
-                    <option value="Madhapur">Madhapur</option>
-                    <option value="Jubilee Hills">Jubilee Hills</option>
-                    <option value="Banjara Hills">Banjara Hills</option>
-                    <option value="Gachibowli">Gachibowli</option>
-                    <option value="Kondapur">Kondapur</option>
-                    <option value="Hitech City">Hitech City</option>
-                    <option value="Uppal">Uppal</option>
-                    <option value="Secunderabad">Secunderabad</option>
-                    <option value="Begumpet">Begumpet</option>
-                    <option value="Khairatabad">Khairatabad</option>
-                    <option value="Abids">Abids</option>
-                    <option value="Charminar">Charminar</option>
-                    <option value="Kukatpally">Kukatpally</option>
-                    <option value="Dilsukhnagar">Dilsukhnagar</option>
-                    <option value="Mehdipatnam">Mehdipatnam</option>
-                    <option value="Nampally">Nampally</option>
-                    <option value="Habsiguda">Habsiguda</option>
-                  </select>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" /> Restaurant Address
+                    </label>
+                    <input type="text" required placeholder="e.g. 123 Main St, Madhapur"
+                      className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                      value={signupData.address}
+                      onChange={e => setSignupData({ ...signupData, address: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1">
+                      PIN Code
+                    </label>
+                    <input type="text" required placeholder="e.g. 500081"
+                      className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                      value={signupData.pinCode}
+                      onChange={e => setSignupData({ ...signupData, pinCode: e.target.value })} />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -807,6 +818,46 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
                   </div>
                 </div>
 
+                {/* Bank Details Section */}
+                <div className="pt-3 border-t border-white/5 space-y-3 text-left">
+                  <h4 className="text-[11px] font-black text-slate-200 tracking-wider uppercase flex items-center gap-2">
+                    <img src="https://img.icons8.com/color/48/bank.png" className="h-4 w-4 object-contain" alt="" />
+                    Bank Account Details
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Bank Name</label>
+                      <input type="text" required placeholder="e.g. HDFC Bank"
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                        value={signupData.bankName}
+                        onChange={e => setSignupData({ ...signupData, bankName: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Holder Name</label>
+                      <input type="text" required placeholder="Account Holder Name"
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                        value={signupData.accountHolderName}
+                        onChange={e => setSignupData({ ...signupData, accountHolderName: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Account Number</label>
+                      <input type="text" required placeholder="Account Number"
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                        value={signupData.accountNumber}
+                        onChange={e => setSignupData({ ...signupData, accountNumber: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">IFSC Code</label>
+                      <input type="text" required placeholder="e.g. HDFC0001234"
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-red-500 text-white"
+                        value={signupData.ifscCode}
+                        onChange={e => setSignupData({ ...signupData, ifscCode: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+
                 <button type="submit" className="w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-red-500/20 transition flex items-center justify-center gap-2">
                   Continue to Plan Selection <ChevronRight className="w-4 h-4" />
                 </button>
@@ -843,7 +894,7 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
                 <p className="text-xs sm:text-sm text-slate-400">Step 2 of 2 — Activate your restaurant subscription</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-6">
+              <div className="flex justify-center max-w-sm mx-auto w-full">
                 {PLANS.map(plan => (
                   <div key={plan.id} onClick={() => handlePlanSelect(plan)}
                     className={`relative p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-2 text-left transition-all duration-300 hover:scale-[1.02] cursor-pointer flex flex-col justify-between h-full ${plan.color} ${plan.badge ? 'bg-gradient-to-b from-red-950/25 to-slate-900/95 shadow-lg shadow-red-950/5' : 'bg-slate-950/60'}`}>
@@ -870,17 +921,20 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
                       </div>
                       
                       <ul className="mt-4 sm:mt-5 space-y-2 sm:space-y-2.5">
-                        {plan.features.map((f, i) => (
-                          <li key={i} className="flex items-start gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
-                            <Check className={`w-3 h-3 sm:w-3.5 sm:h-3.5 mt-0.5 flex-shrink-0 ${plan.badge ? 'text-red-400' : 'text-green-400'}`} />
-                            <span className="text-slate-300 font-medium leading-tight">{f}</span>
-                          </li>
-                        ))}
+                        {plan.features.map((f, i) => {
+                          const isHighlighted = f.toLowerCase().includes('try 1 month') || f.toLowerCase().includes('free trial');
+                          return (
+                            <li key={i} className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
+                              <Check className={`w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0 ${isHighlighted ? 'text-[#ccff00]' : (plan.badge ? 'text-red-400' : 'text-green-400')}`} />
+                              <span className={`leading-tight ${isHighlighted ? 'text-[#ccff00] font-extrabold' : 'text-slate-300 font-medium'}`}>{f}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
                     <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-white/5 space-y-2.5 sm:space-y-3">
-                      {plan.price === 0 && (
+                      {(plan.price === 0 || plan.id === 'basic') && (
                         <div className="text-[8px] sm:text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                           <span>✓</span> No credit card required
                         </div>
@@ -888,13 +942,9 @@ export default function AuthPage({ users, setUsers, restaurants, setRestaurants,
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handlePlanSelect(plan); }}
-                        className={`w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs transition duration-200 cursor-pointer ${
-                          plan.badge 
-                            ? 'bg-red-500 hover:bg-red-600 text-white shadow shadow-red-500/20' 
-                            : 'bg-white/10 hover:bg-white/15 text-white border border-white/10'
-                        }`}
+                        className="w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs transition duration-200 cursor-pointer bg-[#ccff00] hover:bg-[#bbf000] text-slate-950 shadow shadow-[#ccff00]/15 hover:scale-[1.01]"
                       >
-                        Select {plan.name}
+                        {plan.id === 'basic' ? 'Try 1 Month Free' : `Select ${plan.name}`}
                       </button>
                     </div>
                   </div>

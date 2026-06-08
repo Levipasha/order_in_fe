@@ -69,11 +69,6 @@ export const PlaceCard = ({
 
         {/* Rating and Timings line */}
         <div className="flex items-center gap-1.5 text-[14px] font-extrabold text-slate-800">
-          <div className="flex items-center gap-0.5 bg-green-700 text-white rounded-full px-1.5 py-0.5 text-[10px] font-black tracking-wide shrink-0">
-            <Star className="w-2.5 h-2.5 fill-white text-white" />
-            <span>{rating ? Number(rating).toFixed(1) : "4.2"}</span>
-          </div>
-          <span className="text-slate-300 font-extrabold text-[12px] shrink-0">&bull;</span>
           <span className="text-slate-700 font-extrabold text-[13px] tracking-tight shrink-0">{timingText}</span>
         </div>
 

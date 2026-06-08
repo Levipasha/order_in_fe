@@ -318,6 +318,8 @@ export default function RestaurantAdminPanel({
           tableNo: data.order.tableNo || 'T1',
           subTotal: data.order.subTotal,
           gstAmount: data.order.gstAmount,
+          cgstAmount: data.order.cgstAmount,
+          sgstAmount: data.order.sgstAmount,
           deliveryCharge: data.order.deliveryCharge,
           totalAmount: data.order.totalAmount,
           paymentMethod: data.order.paymentMethod,
@@ -406,6 +408,7 @@ export default function RestaurantAdminPanel({
   const [businessPhone, setBusinessPhone] = useState(restaurant?.phone || '');
   const [panNumber, setPanNumber] = useState(restaurant?.panNumber || '');
   const [gstNumber, setGstNumber] = useState(restaurant?.gstNumber || '');
+  const [fssaiNumber, setFssaiNumber] = useState(restaurant?.fssaiNumber || '');
   const [businessAddress, setBusinessAddress] = useState(restaurant?.address || '');
 
   const [logo, setLogo] = useState(restaurant?.logo || '');
@@ -447,6 +450,8 @@ export default function RestaurantAdminPanel({
 
   const [settings, setSettings] = useState({
     gstPercentage: typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5,
+    cgstPercentage: typeof restaurant?.settings?.cgstPercentage === 'number' ? restaurant.settings.cgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5),
+    sgstPercentage: typeof restaurant?.settings?.sgstPercentage === 'number' ? restaurant.settings.sgstPercentage : (typeof restaurant?.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5),
     deliveryCharge: typeof restaurant?.settings?.deliveryCharge === 'number' ? restaurant.settings.deliveryCharge : 30,
     minimumOrderAmount: typeof restaurant?.settings?.minimumOrderAmount === 'number' ? restaurant.settings.minimumOrderAmount : 99
   });
@@ -584,6 +589,8 @@ export default function RestaurantAdminPanel({
       });
       setSettings({
         gstPercentage: typeof restaurant.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage : 5,
+        cgstPercentage: typeof restaurant.settings?.cgstPercentage === 'number' ? restaurant.settings.cgstPercentage : (typeof restaurant.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5),
+        sgstPercentage: typeof restaurant.settings?.sgstPercentage === 'number' ? restaurant.settings.sgstPercentage : (typeof restaurant.settings?.gstPercentage === 'number' ? restaurant.settings.gstPercentage / 2 : 2.5),
         deliveryCharge: typeof restaurant.settings?.deliveryCharge === 'number' ? restaurant.settings.deliveryCharge : 30,
         minimumOrderAmount: typeof restaurant.settings?.minimumOrderAmount === 'number' ? restaurant.settings.minimumOrderAmount : 99
       });
@@ -592,6 +599,7 @@ export default function RestaurantAdminPanel({
       setBusinessPhone(restaurant.phone || restaurant.contact?.phone || '');
       setPanNumber(restaurant.panNumber || '');
       setGstNumber(restaurant.gstNumber || '');
+      setFssaiNumber(restaurant.fssaiNumber || '');
       setBusinessAddress(restaurant.address || restaurant.contact?.address || '');
       setLogo(restaurant.logo || '');
       setBanner(restaurant.banner || '');
@@ -756,6 +764,7 @@ export default function RestaurantAdminPanel({
           phone: businessPhone,
           panNumber,
           gstNumber, // GST is optional
+          fssaiNumber,
           address: businessAddress,
           logo,
           banner,
@@ -775,6 +784,7 @@ export default function RestaurantAdminPanel({
           phone: res.restaurant.phone,
           panNumber: res.restaurant.panNumber,
           gstNumber: res.restaurant.gstNumber,
+          fssaiNumber: res.restaurant.fssaiNumber,
           address: res.restaurant.address,
           kycStatus: res.restaurant.kycStatus,
           settlementStatus: res.restaurant.settlementStatus,
@@ -792,6 +802,195 @@ export default function RestaurantAdminPanel({
     }
   };
 
+  const handlePrintBill = (ord) => {
+    const cgstAmt = typeof ord.cgstAmount === 'number' ? ord.cgstAmount : Math.round((ord.gstAmount / 2) * 100) / 100;
+    const sgstAmt = typeof ord.sgstAmount === 'number' ? ord.sgstAmount : Math.round((ord.gstAmount / 2) * 100) / 100;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=800');
+    if (!printWindow) {
+      alert("Please allow popups to print the bill.");
+      return;
+    }
+
+    const receiptHtml = `
+      <html>
+        <head>
+          <title>Bill Receipt - ${ord.id}</title>
+          <style>
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              padding: 20px;
+              color: #000;
+              background: #fff;
+              font-size: 14px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .restaurant-name {
+              font-size: 20px;
+              font-weight: bold;
+              text-transform: uppercase;
+            }
+            .meta-info {
+              margin-bottom: 15px;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 10px;
+            }
+            .meta-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 4px;
+            }
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 15px;
+            }
+            .items-table th {
+              border-bottom: 1px dashed #000;
+              text-align: left;
+              padding: 6px 0;
+            }
+            .items-table td {
+              padding: 6px 0;
+            }
+            .text-right {
+              text-align: right;
+            }
+            .totals {
+              border-top: 1px dashed #000;
+              padding-top: 10px;
+              margin-bottom: 20px;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 6px;
+            }
+            .grand-total {
+              font-size: 16px;
+              font-weight: bold;
+              border-top: 1px solid #000;
+              border-bottom: 1px solid #000;
+              padding: 6px 0;
+              margin-top: 6px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              font-size: 12px;
+              border-top: 1px dashed #000;
+              padding-top: 15px;
+            }
+            @media print {
+              body {
+                padding: 0;
+                margin: 10mm;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="restaurant-name">${restaurant.name}</div>
+            <div>${restaurant.address || restaurant.contact?.address || ''}</div>
+            ${restaurant.phone || restaurant.contact?.phone ? `<div>Phone: ${restaurant.phone || restaurant.contact?.phone}</div>` : ''}
+            ${restaurant.gstNumber ? `<div>GSTIN: ${restaurant.gstNumber}</div>` : ''}
+            ${restaurant.fssaiNumber ? `<div>FSSAI License No: ${restaurant.fssaiNumber}</div>` : ''}
+          </div>
+
+          <div class="meta-info">
+            <div class="meta-row">
+              <span>Date: ${new Date(ord.createdAt).toLocaleString('en-IN')}</span>
+            </div>
+            <div class="meta-row">
+              <span>Order ID: #${ord.id?.slice(-8).toUpperCase()}</span>
+              <span>Type: ${ord.orderType?.toUpperCase()} ${ord.tableNo ? `(Table ${ord.tableNo})` : ''}</span>
+            </div>
+            <div class="meta-row">
+              <span>Customer: ${ord.customerName}</span>
+              <span>Phone: ${ord.customerPhone || 'N/A'}</span>
+            </div>
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Item Description</th>
+                <th class="text-right" style="width: 60px;">Qty</th>
+                <th class="text-right" style="width: 80px;">Rate</th>
+                <th class="text-right" style="width: 90px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ord.items.map(item => `
+                <tr>
+                  <td>
+                    ${item.name}
+                    ${item.selectedAddons && item.selectedAddons.length > 0 ? `<br/><small style="font-size:10px; color:#555;">+ ${item.selectedAddons.map(a => a.name).join(', ')}</small>` : ''}
+                  </td>
+                  <td class="text-right">${item.quantity}</td>
+                  <td class="text-right">₹${item.price}</td>
+                  <td class="text-right">₹${item.price * item.quantity}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="total-row">
+              <span>Subtotal:</span>
+              <span>₹${ord.subTotal}</span>
+            </div>
+            ${cgstAmt > 0 ? `
+              <div class="total-row">
+                <span>CGST (${settings.cgstPercentage || (settings.gstPercentage / 2) || 2.5}%):</span>
+                <span>₹${cgstAmt}</span>
+              </div>
+            ` : ''}
+            ${sgstAmt > 0 ? `
+              <div class="total-row">
+                <span>SGST (${settings.sgstPercentage || (settings.gstPercentage / 2) || 2.5}%):</span>
+                <span>₹${sgstAmt}</span>
+              </div>
+            ` : ''}
+            ${ord.deliveryCharge > 0 ? `
+              <div class="total-row">
+                <span>Delivery Charge:</span>
+                <span>₹${ord.deliveryCharge}</span>
+              </div>
+            ` : ''}
+            <div class="total-row grand-total">
+              <span>GRAND TOTAL:</span>
+              <span>₹${ord.totalAmount}</span>
+            </div>
+          </div>
+
+          <div class="meta-row" style="margin-top: 10px; font-size:12px;">
+            <span>Payment: ${ord.paymentMethod?.toUpperCase()}</span>
+            <span>Status: ${ord.paymentStatus?.toUpperCase()}</span>
+          </div>
+
+          <div class="footer">
+            <div>Thank You for Dining with Us!</div>
+            <div style="margin-top:5px; font-size:10px;">Powered by SkyWeb IT Solutions</div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
+  };
 
   const [newCatName, setNewCatName] = useState('');
   const [newCatImage, setNewCatImage] = useState('');
@@ -1026,6 +1225,58 @@ export default function RestaurantAdminPanel({
     setLatestQrCodeGenerated(resolvedQrCodeUrl);
     setLastGeneratedTableNo(qrTableNoInput);
     setQrTableNoInput('');
+  };
+
+  const handleDownloadTableQR = (tableNo, qrCodeUrl) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 450;
+    canvas.height = 560;
+    const ctx = canvas.getContext('2d');
+
+    // Fill white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const qrImg = new Image();
+    qrImg.crossOrigin = 'anonymous';
+    qrImg.src = qrCodeUrl;
+    
+    qrImg.onload = () => {
+      // Draw Restaurant Name
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText(restaurant.name || 'Orderin Partner', canvas.width / 2, 70);
+
+      // Draw QR Code Image
+      ctx.drawImage(qrImg, (canvas.width - 250) / 2, 110, 250, 250);
+
+      // Draw Table Number Text
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(`Table ${tableNo}`, canvas.width / 2, 410);
+
+      // Draw "Orderin"
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('Orderin', canvas.width / 2, 465);
+
+      // Draw Product Info
+      ctx.fillStyle = '#64748b';
+      ctx.font = '500 12px sans-serif';
+      ctx.fillText('A Product of SkyWeb IT Solutions Pvt. Ltd.', canvas.width / 2, 510);
+
+      // Trigger download
+      const link = document.createElement('a');
+      const filename = `${restaurant.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-table-${tableNo}-qr.png`;
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    qrImg.onerror = () => {
+      alert("Failed to load QR image. Please try again.");
+    };
   };
 
   return (
@@ -1281,12 +1532,11 @@ export default function RestaurantAdminPanel({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
                   { label: 'Your Orders count', count: localOrders.length, desc: 'Total dining backlog', icon: <Utensils className="w-5 h-5 text-indigo-400" /> },
                   { label: 'Restaurant Sales', count: `₹${Math.round(salesVolume)}`, desc: 'Paid gross earnings', icon: <DollarSign className="w-5 h-5 text-emerald-400" /> },
-                  { label: 'Bestseller Today', count: todayBestseller ? (todayBestseller.name.length > 15 ? todayBestseller.name.substring(0, 13) + '..' : todayBestseller.name) : 'None yet', desc: todayBestseller ? `${todayBestseller.quantity} portions sold` : 'No sales today', icon: <Pizza className="w-5 h-5 text-rose-400 animate-pulse" /> },
-                  { label: 'Current Ratings', count: restaurant.rating, desc: 'Customer stars average', icon: <Star className="w-5 h-5 text-amber-400 fill-amber-400" /> }
+                  { label: 'Bestseller Today', count: todayBestseller ? (todayBestseller.name.length > 15 ? todayBestseller.name.substring(0, 13) + '..' : todayBestseller.name) : 'None yet', desc: todayBestseller ? `${todayBestseller.quantity} portions sold` : 'No sales today', icon: <Pizza className="w-5 h-5 text-rose-400 animate-pulse" /> }
                 ].map((c, i) => (
                   <div key={i} className="bg-slate-900/60 rounded-3xl border border-white/5 p-6 flex justify-between items-center">
                     <div>
@@ -1578,9 +1828,17 @@ export default function RestaurantAdminPanel({
                         ))}
                       </div>
 
-                      <div className="pt-3 border-t border-white/5 flex justify-between text-xs text-slate-400">
+                      <div className="pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
                         <span>Customer: {ord.customerName}</span>
-                        <span>Grand Total: <strong className="text-red-400">₹{ord.totalAmount}</strong> ({ord.paymentStatus})</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handlePrintBill(ord)}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border border-white/10 transition flex items-center gap-1 cursor-pointer uppercase tracking-wider"
+                          >
+                            🖨️ Print Bill
+                          </button>
+                          <span>Grand Total: <strong className="text-red-400">₹{ord.totalAmount}</strong> ({ord.paymentStatus})</span>
+                        </div>
                       </div>
                     </div>
                     );
@@ -1611,6 +1869,7 @@ export default function RestaurantAdminPanel({
                         <th className="p-4">Pickup Info</th>
                         <th className="p-4">OTP / QR Code</th>
                         <th className="p-4">Preparation Status</th>
+                        <th className="p-4">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1668,6 +1927,14 @@ export default function RestaurantAdminPanel({
                                 </select>
                               </div>
                             </td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => handlePrintBill(ord)}
+                                className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg border border-white/10 transition cursor-pointer"
+                              >
+                                🖨️ Print
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -1707,13 +1974,22 @@ export default function RestaurantAdminPanel({
 
                 <div className="bg-slate-900 border border-white/5 rounded-3xl p-6 flex flex-col items-center justify-center min-h-[250px]">
                   {latestQrCodeGenerated ? (
-                    <div className="space-y-4 text-center">
+                    <div className="space-y-4 text-center flex flex-col items-center">
                       <div className="bg-white p-4 rounded-2xl inline-block">
                         <img src={latestQrCodeGenerated} alt="Table QR" className="w-36 h-36" />
                       </div>
-                      <span className="bg-indigo-600 text-white text-[9px] uppercase font-extrabold px-2 py-0.5 rounded block">
-                        Table {lastGeneratedTableNo} Active
-                      </span>
+                      <div className="flex flex-col gap-2 w-full max-w-[150px]">
+                        <span className="bg-indigo-600 text-white text-[9px] uppercase font-extrabold px-2.5 py-1 rounded-lg block">
+                          Table {lastGeneratedTableNo} Active
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadTableQR(lastGeneratedTableNo, latestQrCodeGenerated)}
+                          className="text-[10px] text-white bg-red-500 hover:bg-red-600 py-1.5 px-3 rounded-lg font-black transition cursor-pointer"
+                        >
+                          Download QR
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">Fill left form fields to compile printable table QR</p>
@@ -1753,16 +2029,25 @@ export default function RestaurantAdminPanel({
                             >
                               Open Order Link
                             </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(tableUrl);
-                                alert(`Table ${t.tableNo} link copied to clipboard!`);
-                              }}
-                              className="text-[9px] text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 py-1 px-2.5 rounded-lg font-bold transition mt-1"
-                            >
-                              Copy Link
-                            </button>
+                            <div className="flex gap-2 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(tableUrl);
+                                  alert(`Table ${t.tableNo} link copied to clipboard!`);
+                                }}
+                                className="flex-1 text-[9px] text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                Copy Link
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadTableQR(t.tableNo, t.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(tableUrl)}`)}
+                                className="flex-1 text-[9px] text-white hover:bg-red-600 bg-red-500 py-1.5 px-2 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                Download QR
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1926,17 +2211,44 @@ export default function RestaurantAdminPanel({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">GST Tax (%)</label>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Food License Number (FSSAI)</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 text-white font-bold"
+                        value={fssaiNumber}
+                        onChange={e => setFssaiNumber(e.target.value)}
+                        placeholder="e.g. 12345678901234"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">CGST Tax (%)</label>
                       <input 
                         type="number" 
                         required 
                         min="0"
                         max="30"
+                        step="0.1"
                         className="w-full bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 text-white font-bold"
-                        value={settings.gstPercentage}
-                        onChange={e => setSettings({ ...settings, gstPercentage: Number(e.target.value) })}
+                        value={settings.cgstPercentage || 0}
+                        onChange={e => setSettings({ ...settings, cgstPercentage: Number(e.target.value) })}
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">SGST Tax (%)</label>
+                      <input 
+                        type="number" 
+                        required 
+                        min="0"
+                        max="30"
+                        step="0.1"
+                        className="w-full bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 text-white font-bold"
+                        value={settings.sgstPercentage || 0}
+                        onChange={e => setSettings({ ...settings, sgstPercentage: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <div className="space-y-1">
                       <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Delivery Charge (₹)</label>
                       <input 
